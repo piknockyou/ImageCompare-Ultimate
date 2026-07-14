@@ -1251,6 +1251,23 @@ animateToggleBtn.addEventListener('click', () => { animationFrameId === null ? s
 
 /* ============ Capture PNG (from compare-image, generalized) ============ */
 /**
+ * Axis-preserving "contain" draw size of an image fitted into (areaW × areaH).
+ * Equivalent to CSS `object-fit: contain`. Centralized here so the letterbox
+ * math lives in exactly one place and `drawContain` / capture stay in sync.
+ * @param {number} areaW - destination width
+ * @param {number} areaH - destination height
+ * @param {number} imgW  - image natural width
+ * @param {number} imgH  - image natural height
+ * @returns {{dw:number, dh:number}} the drawn (letterboxed) size
+ */
+function containBox(areaW, areaH, imgW, imgH) {
+  if (!imgW || !imgH) return { dw: 0, dh: 0 };
+  const r = imgW / imgH;
+  let dw = areaW, dh = areaW / r;
+  if (dh > areaH) { dh = areaH; dw = areaH * r; }
+  return { dw, dh };
+}
+/**
  * Draw an image into a destination rect using "contain" (letterbox) rules,
  * preserving aspect ratio and centering within (x, y, w, h).
  * @param {CanvasRenderingContext2D} ctx
@@ -1263,52 +1280,94 @@ animateToggleBtn.addEventListener('click', () => { animationFrameId === null ? s
  */
 function drawContain(ctx, img, x, y, w, h) {
   if (!img.naturalWidth) return;
-  const r = img.naturalWidth / img.naturalHeight;
-  let dw = w, dh = w / r;
-  if (dh > h) { dh = h; dw = h * r; }
+  const { dw, dh } = containBox(w, h, img.naturalWidth, img.naturalHeight);
   ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
 }
 /**
- * Render the current split or side-by-side view to an offscreen canvas (scaled
- * by devicePixelRatio for crisp output) and trigger a PNG download. For split
- * mode it draws image B full, then clips to the active split polygon and draws
- * image A on top — exactly mirroring what's on screen including diagonal splits.
+ * Compute the painted image-content boxes (in `arect` coordinates) for the
+ * active mode, using contain math so the result is zoom/pan independent
+ * ("fit-only", matching the on-screen object-fit:contain and normalizeSideBySide
+ * layouts). Split: both images contain-fit the whole container. Side: each
+ * image contain-fits its own panel, then is offset to the panel origin.
+ * @param {'split'|'side'} m
+ * @param {DOMRect} arect - bounding rect of the active container
+ * @returns {Array<{im:HTMLImageElement, x:number, y:number, w:number, h:number}>}
+ */
+function imageContentBoxes(m, arect) {
+  const out = [];
+  if (m === 'split') {
+    for (const im of [imgB, imgA]) {
+      if (!im.naturalWidth) continue;
+      const { dw, dh } = containBox(arect.width, arect.height, im.naturalWidth, im.naturalHeight);
+      out.push({ im, x: (arect.width - dw) / 2, y: (arect.height - dh) / 2, w: dw, h: dh });
+    }
+  } else {
+    const panels = sideBySide.querySelectorAll('.panel');
+    [imgA2, imgB2].forEach((im, i) => {
+      if (!im.naturalWidth) return;
+      const pr = panels[i].getBoundingClientRect();
+      const px = pr.left - arect.left, py = pr.top - arect.top;
+      const { dw, dh } = containBox(pr.width, pr.height, im.naturalWidth, im.naturalHeight);
+      out.push({ im, x: px + (pr.width - dw) / 2, y: py + (pr.height - dh) / 2, w: dw, h: dh });
+    });
+  }
+  return out;
+}
+/**
+ * Render the current split or side-by-side view to an offscreen canvas and
+ * download it as PNG. The canvas is cropped to the UNION of the actual image
+ * content boxes, so the surrounding letterbox / container area is NOT captured,
+ * and the PNG background is left TRANSPARENT. Split mode draws image B (base)
+ * then clips image A to the active slider polygon; side-by-side draws both images
+ * at their true (fit) positions, preserving the gap between them.
+ * Exports at fit scale — current zoom/pan are intentionally NOT reproduced.
+ * @credit capture approach from compare-image (tchung1970, MIT)
  */
 function captureComparison() {
   if (mode !== 'split' && mode !== 'side') return;
   const area = mode === 'split' ? compareView : sideBySide;
   const arect = area.getBoundingClientRect();
+  if (!arect.width || !arect.height) return;
+
+  // 1) Image content boxes (zoom-independent) + their union bounding box.
+  const boxes = imageContentBoxes(mode, arect);
+  if (!boxes.length) return;
+  let ux = Infinity, uy = Infinity, umx = -Infinity, umy = -Infinity;
+  for (const b of boxes) {
+    ux = Math.min(ux, b.x); uy = Math.min(uy, b.y);
+    umx = Math.max(umx, b.x + b.w); umy = Math.max(umy, b.y + b.h);
+  }
+  const ubW = umx - ux, ubH = umy - uy;
+  if (ubW <= 0 || ubH <= 0) return;
+
+  // 2) Canvas = union box (transparent, no bg fill), dpr-scaled & origin-shifted.
   const dpr = window.devicePixelRatio || 1;
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(arect.width * dpr);
-  canvas.height = Math.round(arect.height * dpr);
+  canvas.width = Math.max(1, Math.round(ubW * dpr));
+  canvas.height = Math.max(1, Math.round(ubH * dpr));
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = false;
   ctx.scale(dpr, dpr);
-  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--viewport-bg') || '#0f1119';
-  ctx.fillRect(0, 0, arect.width, arect.height);
+  ctx.translate(-ux, -uy);              // map arect coords -> union-canvas coords
+
   if (mode === 'split') {
-    drawContain(ctx, imgB, 0, 0, arect.width, arect.height);
-    const pts = getLeftClipPoints();
+    const bB = boxes.find(b => b.im === imgB) || boxes[0];
+    drawContain(ctx, bB.im, bB.x, bB.y, bB.w, bB.h);
+    const bA = boxes.find(b => b.im === imgA) || boxes[boxes.length - 1];
+    const pts = getLeftClipPoints();       // normalized 0..1 of the container
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(pts[0].x * arect.width, pts[0].y * arect.height);
     for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * arect.width, pts[i].y * arect.height);
     ctx.closePath(); ctx.clip();
-    drawContain(ctx, imgA, 0, 0, arect.width, arect.height);
+    drawContain(ctx, bA.im, bA.x, bA.y, bA.w, bA.h);
     ctx.restore();
   } else {
-    const panels = sideBySide.querySelectorAll('.panel');
-    [imgA2, imgB2].forEach((img, i) => {
-      const pr = panels[i].getBoundingClientRect();
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(pr.left - arect.left, pr.top - arect.top, pr.width, pr.height);
-      ctx.clip();
-      drawContain(ctx, img, pr.left - arect.left, pr.top - arect.top, pr.width, pr.height);
-      ctx.restore();
-    });
+    for (const b of boxes) drawContain(ctx, b.im, b.x, b.y, b.w, b.h);
   }
+
+  canvas.toBlob(blob => { if (blob) downloadBlob(blob, `compare-${mode}.png`); }, 'image/png');
+}
   canvas.toBlob(blob => { if (blob) downloadBlob(blob, `compare-${mode}.png`); }, 'image/png');
 }
 captureBtn.addEventListener('click', captureComparison);
