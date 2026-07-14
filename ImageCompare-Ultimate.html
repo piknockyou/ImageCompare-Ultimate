@@ -962,8 +962,8 @@ function updateDividerLine() {
     const r = compareView.getBoundingClientRect();
     const w = r.width, h = r.height;
     const rot = sliderMode === 'diagonal-slash'
-      ? Math.atan2(-h, w) * 180 / Math.PI
-      : Math.atan2(h, w)  * 180 / Math.PI;
+      ? Math.atan2(w, h)  * 180 / Math.PI
+      : Math.atan2(w, -h) * 180 / Math.PI;
     const len = Math.max(10, Math.hypot(w, h) * 1.2);
     dividerLine.style.width = '2px';
     dividerLine.style.height = len + 'px';
