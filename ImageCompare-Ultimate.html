@@ -1353,27 +1353,6 @@ function imageContentBoxes(m, arect) {
   return out;
 }
 
-function drawDividerOnCanvas(ctx, W, H) {
-  ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-  ctx.shadowColor = 'rgba(0,0,0,0.5)';
-  ctx.shadowBlur = 6;
-  ctx.lineWidth = 2;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  if (sliderMode === 'vertical') { ctx.moveTo(handleX * W, 0); ctx.lineTo(handleX * W, H); }
-  else if (sliderMode === 'horizontal') { ctx.moveTo(0, handleY * H); ctx.lineTo(W, handleY * H); }
-  else {
-    const ang = sliderMode === 'diagonal-slash' ? Math.atan2(W, H) : Math.atan2(W, -H);
-    const dx = Math.sin(ang), dy = -Math.cos(ang);
-    const len = Math.max(10, Math.hypot(W, H) * 1.2);
-    ctx.moveTo(handleX * W - dx * len / 2, handleY * H - dy * len / 2);
-    ctx.lineTo(handleX * W + dx * len / 2, handleY * H + dy * len / 2);
-  }
-  ctx.stroke();
-  ctx.restore();
-}
-
 /**
  * Render the current split or side-by-side view to an offscreen canvas and
  * download it as PNG. The canvas is cropped to the UNION of the actual image
@@ -1392,63 +1371,44 @@ function captureComparison() {
 
   const boxes = imageContentBoxes(mode, arect);
   if (!boxes.length) return;
-
-  const W = arect.width, H = arect.height;
-  let rx = Infinity, ry = Infinity, rmx = -Infinity, rmy = -Infinity;
+  let ux = Infinity, uy = Infinity, umx = -Infinity, umy = -Infinity;
   for (const b of boxes) {
-    const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
-    const tlX = cx + zoom * panX - (b.w * zoom) / 2;
-    const tlY = cy + zoom * panY - (b.h * zoom) / 2;
-    rx = Math.min(rx, tlX); ry = Math.min(ry, tlY);
-    rmx = Math.max(rmx, tlX + b.w * zoom); rmy = Math.max(rmy, tlY + b.h * zoom);
+    ux = Math.min(ux, b.x); uy = Math.min(uy, b.y);
+    umx = Math.max(umx, b.x + b.w); umy = Math.max(umy, b.y + b.h);
   }
-  const rcW = rmx - rx, rcH = rmy - ry;
-  if (rcW <= 0 || rcH <= 0) return;
+  const ubW = umx - ux, ubH = umy - uy;
+  if (ubW <= 0 || ubH <= 0) return;
 
   const dpr = window.devicePixelRatio || 1;
   const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(rcW * dpr));
-  canvas.height = Math.max(1, Math.round(rcH * dpr));
+  canvas.width = Math.max(1, Math.round(ubW * dpr));
+  canvas.height = Math.max(1, Math.round(ubH * dpr));
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = false;
   ctx.scale(dpr, dpr);
-  ctx.translate(-rx, -ry);
-
-  function withViewTransform(cx, cy, bw, bh, fn) {
-    ctx.save();
-    ctx.translate(cx + zoom * panX, cy + zoom * panY);
-    ctx.scale(zoom, zoom);
-    ctx.translate(-cx, -cy);
-    fn();
-    ctx.restore();
-  }
+  ctx.translate(-ux, -uy);
 
   if (mode === 'split') {
     const bB = boxes.find(b => b.im === imgB) || boxes[0];
     const rpts = getRightClipPoints();
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(rpts[0].x * W, rpts[0].y * H);
-    for (let i = 1; i < rpts.length; i++) ctx.lineTo(rpts[i].x * W, rpts[i].y * H);
+    ctx.moveTo(rpts[0].x * arect.width, rpts[0].y * arect.height);
+    for (let i = 1; i < rpts.length; i++) ctx.lineTo(rpts[i].x * arect.width, rpts[i].y * arect.height);
     ctx.closePath(); ctx.clip();
-    withViewTransform(bB.x + bB.w / 2, bB.y + bB.h / 2, bB.w, bB.h, () => drawContain(ctx, bB.im, bB.x, bB.y, bB.w, bB.h));
+    drawContain(ctx, bB.im, bB.x, bB.y, bB.w, bB.h);
     ctx.restore();
-
     const bA = boxes.find(b => b.im === imgA) || boxes[boxes.length - 1];
     const pts = getLeftClipPoints();
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(pts[0].x * W, pts[0].y * H);
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * W, pts[i].y * H);
+    ctx.moveTo(pts[0].x * arect.width, pts[0].y * arect.height);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * arect.width, pts[i].y * arect.height);
     ctx.closePath(); ctx.clip();
-    withViewTransform(bA.x + bA.w / 2, bA.y + bA.h / 2, bA.w, bA.h, () => drawContain(ctx, bA.im, bA.x, bA.y, bA.w, bA.h));
+    drawContain(ctx, bA.im, bA.x, bA.y, bA.w, bA.h);
     ctx.restore();
-
-    drawDividerOnCanvas(ctx, W, H);
   } else {
-    for (const b of boxes) {
-      withViewTransform(b.x + b.w / 2, b.y + b.h / 2, b.w, b.h, () => drawContain(ctx, b.im, b.x, b.y, b.w, b.h));
-    }
+    for (const b of boxes) drawContain(ctx, b.im, b.x, b.y, b.w, b.h);
   }
 
   canvas.toBlob(blob => { if (blob) downloadBlob(blob, `compare-${mode}.png`); }, 'image/png');
