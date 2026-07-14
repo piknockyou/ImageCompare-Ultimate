@@ -8,7 +8,7 @@ Drop two images (or paste from clipboard / click to browse), then compare them i
 five different view modes with cursor-anchored zoom, drag-to-pan, and a PNG
 capture export.
 
-> ![tool teaser](screenshot.png) *← Add a 1200×750 preview screenshot here*
+> ![tool teaser](screenshot.jpg)
 
 ---
 
