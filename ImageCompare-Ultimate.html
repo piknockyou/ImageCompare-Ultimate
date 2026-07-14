@@ -630,33 +630,26 @@ uploadScreen.addEventListener('drop', e => {
  * @param {(file:File)=>void} handler
  * @credit clipboard paste adapted from beforeafter (Yani Iliev, MIT)
  */
-function setupPaste(box, handler) {
-  box.tabIndex = 0;
-  box.addEventListener('paste', e => {
-    const items = e.clipboardData.items;
-    for (const it of items) {
+/** Document-level paste: only active while the upload screen is visible.
+ *  Accepts MULTIPLE images at once — the first fills A, the second fills B — so
+ *  a user can copy two files and paste both in one go. A single pasted image
+ *  always overwrites slot A. We read clipboardData.files first (reliable for
+ *  multi-file copies from Explorer) and fall back to clipboardData.items. */
+document.addEventListener('paste', e => {
+  if (uploadScreen.style.display === 'none') return;
+  let files = [...(e.clipboardData.files || [])].filter(f => f.type.startsWith('image/'));
+  if (!files.length) {
+    for (const it of e.clipboardData.items) {
       if (it.type.indexOf('image') !== -1) {
         const blob = it.getAsFile();
-        handler(new File([blob], 'pasted.png', { type: blob.type }));
-        e.preventDefault(); return;
+        if (blob) files.push(new File([blob], 'pasted.png', { type: blob.type }));
       }
     }
-  });
-}
-setupPaste(uploadA, handleFileA);
-setupPaste(uploadB, handleFileB);
-/** Document-level paste: only active while the upload screen is visible; fills
- *  the first empty slot (A, then B) so a single paste "just works". */
-document.addEventListener('paste', e => {
-  if (uploadScreen.style.display !== 'none') return;
-  const items = e.clipboardData.items;
-  for (const it of items) {
-    if (it.type.indexOf('image') !== -1) {
-      const blob = it.getAsFile(); const f = new File([blob], 'pasted.png', { type: blob.type });
-      if (!fileAObj) handleFileA(f); else if (!fileBObj) handleFileB(f);
-      e.preventDefault(); return;
-    }
   }
+  if (!files.length) return;
+  e.preventDefault();
+  if (files.length >= 2) { handleFileA(files[0]); handleFileB(files[1]); return; }
+  handleFileA(files[0]); // single paste -> overwrite A
 });
 
 /**
@@ -969,8 +962,8 @@ function updateDividerLine() {
     const r = compareView.getBoundingClientRect();
     const w = r.width, h = r.height;
     const rot = sliderMode === 'diagonal-slash'
-      ? Math.atan2(w, h)  * 180 / Math.PI
-      : Math.atan2(w, -h) * 180 / Math.PI;
+      ? Math.atan2(-h, w) * 180 / Math.PI
+      : Math.atan2(h, w)  * 180 / Math.PI;
     const len = Math.max(10, Math.hypot(w, h) * 1.2);
     dividerLine.style.width = '2px';
     dividerLine.style.height = len + 'px';
