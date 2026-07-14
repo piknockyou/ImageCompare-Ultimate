@@ -327,7 +327,7 @@
     <!-- Split view -->
     <div class="compare-container pannable" id="compareView">
       <div class="video-wrapper"><div class="video-inner">
-        <img id="imgB" alt="Image B">
+        <div class="split-clip" id="splitClipB"><img id="imgB" alt="Image B"></div>
         <div class="split-clip" id="splitClip"><img id="imgA" alt="Image A"></div>
       </div></div>
       <button class="fullscreen-btn" id="fullscreenBtn2" type="button" title="Toggle fullscreen">Full Screen</button>
@@ -399,6 +399,7 @@ const imgB = document.getElementById('imgB');
 const imgA2 = document.getElementById('imgA2');
 const imgB2 = document.getElementById('imgB2');
 const splitClip = document.getElementById('splitClip');
+const splitClipB = document.getElementById('splitClipB');
 const dividerLine = document.getElementById('dividerLine');
 const slider = document.getElementById('slider');
 const sliderHandle = document.getElementById('sliderHandle');
@@ -700,7 +701,7 @@ function startCompare() {
   zoom = 1; panX = 0; panY = 0; sliderPos = 0.5;
   setViewMode('split');
   let loaded = 0;
-  const onLoad = () => { if (++loaded >= 2) { updateInfoTags(); setSplit(50); normalizeSideBySide(); } };
+  const onLoad = () => { if (++loaded >= 2) { updateInfoTags(); setSplit(50); normalizeSplit(); normalizeSideBySide(); } };
   imgA.addEventListener('load', onLoad, { once: true });
   imgB.addEventListener('load', onLoad, { once: true });
 }
@@ -762,7 +763,7 @@ function setViewMode(m) {
   stopAnimation();
   if (isCombo) { m === 'combine' ? renderCombine() : renderDiff(); }
   if (isSide) requestAnimationFrame(normalizeSideBySide);
-  if (isSplit) requestAnimationFrame(() => setSplit(sliderPos * 100));
+  if (isSplit) requestAnimationFrame(() => { normalizeSplit(); setSplit(sliderPos * 100); });
   if (isSolo) soloShowBase();
 }
 
@@ -864,6 +865,21 @@ function getLeftClipPoints() {
   return clipPolygonWithHalfPlane(rect, p => p.y - p.x - (handleY - handleX));
 }
 /**
+ * Compute the clip polygon for the RIGHT/AFTER image (image B) — the exact
+ * complement of getLeftClipPoints(), so B only ever shows on its own side and
+ * never bleeds through A's letterbox. Axis modes return a simple rectangle;
+ * diagonal modes return the other half-plane of the same line, so the two clips
+ * tile the square with no gap or overlap and the divider sits on the seam.
+ * @returns {Array<{x:number,y:number}>}
+ */
+function getRightClipPoints() {
+  const rect = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }];
+  if (sliderMode === 'vertical') return [{ x: handleX, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: handleX, y: 1 }];
+  if (sliderMode === 'horizontal') return [{ x: 0, y: handleY }, { x: 1, y: handleY }, { x: 1, y: 1 }, { x: 0, y: 1 }];
+  if (sliderMode === 'diagonal-slash') return clipPolygonWithHalfPlane(rect, p => -(p.x + p.y - (handleX + handleY)));
+  return clipPolygonWithHalfPlane(rect, p => -(p.y - p.x - (handleY - handleX)));
+}
+/**
  * Serialize normalized polygon points into a CSS clip-path() string.
  * A degenerate (empty) polygon falls back to a zero-size triangle so nothing
  * shows rather than an invalid value.
@@ -920,6 +936,11 @@ function setHandleFree(hx, hy) {
  *  the slider handle, update ARIA value, and refresh the divider line. */
 function applySplit() {
   splitClip.style.clipPath = polygonFromPoints(getLeftClipPoints());
+  // Clip the base image (B) to the OPPOSITE side of the slider so it can
+  // never bleed onto the A side or show through A's letterbox margins.
+  // Applied to the container-filling wrapper (not imgB itself, whose box is now
+  // the smaller normalized size) so the clip stays in container space.
+  splitClipB.style.clipPath = polygonFromPoints(getRightClipPoints());
   slider.style.left = (handleX * 100) + '%';
   slider.style.top = (handleY * 100) + '%';
   slider.setAttribute('aria-valuenow', Math.round(sliderPos * 100));
@@ -1197,6 +1218,26 @@ function normalizeSideBySide() {
   updateTransform();
 }
 
+/**
+ * Give the two SPLIT images a SHARED contain-box so they occupy the identical
+ * rectangle (same size + center). Without this, imgA and imgB are each
+ * independently object-fit:contain into the container and, when their aspect
+ * ratios differ, render at different sizes/positions — so the base image
+ * bleeds through and the wipe is no longer a clean before/after line.
+ * We pick the INTERSECTION of the two contain-boxes (the largest rect
+ * both fit via contain), so neither image is cropped and both align.
+ * @credit shared-fit approach adapted from compare-image (tchung1970, MIT)
+ */
+function normalizeSplit() {
+  if (!imgA.naturalWidth || !imgB.naturalWidth) return;
+  const r = compareView.getBoundingClientRect();
+  const cA = containBox(r.width, r.height, imgA.naturalWidth, imgA.naturalHeight);
+  const cB = containBox(r.width, r.height, imgB.naturalWidth, imgB.naturalHeight);
+  const w = Math.min(cA.dw, cB.dw), h = Math.min(cA.dh, cB.dh);
+  [imgA, imgB].forEach(im => { im.style.width = w + 'px'; im.style.height = h + 'px'; });
+  updateTransform();
+}
+
 /* ============ Fullscreen ============ */
 /** Toggle fullscreen on the split container (so the compare view fills the screen). */
 function toggleFullscreen() {
@@ -1296,10 +1337,15 @@ function drawContain(ctx, img, x, y, w, h) {
 function imageContentBoxes(m, arect) {
   const out = [];
   if (m === 'split') {
+    // Shared contain-box (intersection of the two) so capture matches the
+    // normalized display — both images at the same size/position.
+    const cA = containBox(arect.width, arect.height, imgA.naturalWidth, imgA.naturalHeight);
+    const cB = containBox(arect.width, arect.height, imgB.naturalWidth, imgB.naturalHeight);
+    const w = Math.min(cA.dw, cB.dw), h = Math.min(cA.dh, cB.dh);
+    const x = (arect.width - w) / 2, y = (arect.height - h) / 2;
     for (const im of [imgB, imgA]) {
       if (!im.naturalWidth) continue;
-      const { dw, dh } = containBox(arect.width, arect.height, im.naturalWidth, im.naturalHeight);
-      out.push({ im, x: (arect.width - dw) / 2, y: (arect.height - dh) / 2, w: dw, h: dh });
+      out.push({ im, x, y, w, h });
     }
   } else {
     const panels = sideBySide.querySelectorAll('.panel');
@@ -1351,8 +1397,17 @@ function captureComparison() {
   ctx.translate(-ux, -uy);              // map arect coords -> union-canvas coords
 
   if (mode === 'split') {
+    // Base image B, clipped to its own (right/after) side only.
     const bB = boxes.find(b => b.im === imgB) || boxes[0];
+    const rpts = getRightClipPoints();     // normalized 0..1 of the container
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(rpts[0].x * arect.width, rpts[0].y * arect.height);
+    for (let i = 1; i < rpts.length; i++) ctx.lineTo(rpts[i].x * arect.width, rpts[i].y * arect.height);
+    ctx.closePath(); ctx.clip();
     drawContain(ctx, bB.im, bB.x, bB.y, bB.w, bB.h);
+    ctx.restore();
+    // Revealed image A on top, clipped to its (left/before) side.
     const bA = boxes.find(b => b.im === imgA) || boxes[boxes.length - 1];
     const pts = getLeftClipPoints();       // normalized 0..1 of the container
     ctx.save();
@@ -1503,7 +1558,7 @@ backBtn.addEventListener('click', () => {
  * On viewport resize, recompute the split clip (so the divider stays aligned to
  * the new aspect ratio) or re-fit the side-by-side images to their panels.
  */
-window.addEventListener('resize', () => { if (mode === 'split') setSplit(sliderPos * 100); else if (mode === 'side') normalizeSideBySide(); });
+window.addEventListener('resize', () => { if (mode === 'split') { normalizeSplit(); setSplit(sliderPos * 100); } else if (mode === 'side') normalizeSideBySide(); });
 
 /* ============ Init labels ============ */
 /**
