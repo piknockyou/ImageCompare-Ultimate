@@ -1,0 +1,1464 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  ImageCompare-Ultimate
+  ============================================================================
+  A single-file, fully offline image comparison tool. No server, no CDN,
+  no network calls — everything (HTML + CSS + JS) lives in this one file and
+  runs locally in the browser. Images never leave the machine.
+
+  --------------------------------------------------------------------------
+  ORIGIN & LICENSING
+  --------------------------------------------------------------------------
+  This tool is a clean-room MERGE of three independent, MIT-licensed projects.
+  All three licenses permit reuse, modification and redistribution, provided
+  the copyright/permission notice is retained — which we do here.
+
+    Project              Author        License   Features contributed
+    ------------------   ------------  --------  -------------------------------------------
+    beforeafter          Yani Iliev    MIT       Static Combine, Pixel Diff, clipboard paste
+    compare-image        tchung1970    MIT       Split + side-by-side slider, zoom/pan,
+                                                PNG capture, info bar
+    image-swipe-compare  hhkaos        MIT       Diagonal slider modes, keyboard nav,
+                                                fullscreen, autoplay sweep
+
+  Each derived function carries a @credit tag in its JSDoc so attribution
+  travels with the code even if section banners are rearranged.
+
+  --------------------------------------------------------------------------
+  FEATURE MAP
+  --------------------------------------------------------------------------
+    5 view modes:  Split (vertical / diagonal / \, horizontal), Side-by-Side,
+                   Static Combine, Pixel Diff, Solo (press-hold to reveal).
+    Theme:         dark (default) + light toggle, persisted in localStorage
+                   under the key "ictheme".
+    Interactions:  wheel-zoom anchored to cursor, drag-to-pan in every mode,
+                   handle-only slider with free 2D diagonal dragging,
+                   capture current view to PNG, autoplay sweep animation.
+
+  Single deliverable: C:\Users\pikno\Desktop\Compare-Images\ImageCompare-Ultimate.html
+  ============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ImageCompare-Ultimate</title>
+<style>
+  :root,
+  :root[data-theme="dark"] {
+    --bg: #1a1d2e;
+    --panel: rgba(26,29,46,0.95);
+    --panel-solid: #1a1d2e;
+    --text: #fff;
+    --muted: rgba(255,255,255,0.55);
+    --border: rgba(255,255,255,0.08);
+    --control-bg: rgba(255,255,255,0.06);
+    --control-hover: rgba(255,255,255,0.1);
+    --accent: rgba(120,140,255,0.2);
+    --accent-border: rgba(120,140,255,0.25);
+    --accent-text: rgba(120,140,255,0.9);
+    --accent-strong: rgba(120,140,255,0.35);
+    --viewport-bg: #0f1119;
+    --danger: rgba(220,50,50,0.2);
+    --danger-text: #f66;
+    --shadow: 0 2px 12px rgba(0,0,0,0.4);
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f7fb;
+    --panel: #ffffff;
+    --panel-solid: #ffffff;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --border: #d1d5db;
+    --control-bg: #f1f5f9;
+    --control-hover: #e2e8f0;
+    --accent: #eff6ff;
+    --accent-border: #bfdbfe;
+    --accent-text: #2563eb;
+    --accent-strong: #dbeafe;
+    --viewport-bg: #e5e7eb;
+    --danger: #fee2e2;
+    --danger-text: #dc2626;
+    --shadow: 0 2px 12px rgba(0,0,0,0.12);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    display: flex; flex-direction: column; overflow: hidden;
+    transition: background 0.2s, color 0.2s;
+  }
+
+  /* ---------- Header ---------- */
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px;
+    background: var(--panel); border-bottom: 1px solid var(--border); gap: 10px; flex-wrap: wrap; z-index: 10; }
+  .header-left { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .header-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .logo { font-size: 17px; font-weight: 700; letter-spacing: 0.3px; color: var(--text); white-space: nowrap; }
+
+  .seg { display: flex; background: var(--control-bg); border-radius: 10px; padding: 3px; gap: 2px; }
+  .seg button { background: none; border: none; color: var(--muted); padding: 6px 13px; cursor: pointer;
+    font-size: 13px; font-weight: 600; border-radius: 8px; transition: all 0.15s; white-space: nowrap; }
+  .seg button:hover { color: var(--text); }
+  .seg button.active { background: var(--accent); color: var(--accent-text); }
+
+  .pill { background: var(--control-bg); color: var(--muted); padding: 6px 12px; border-radius: 8px;
+    font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid transparent; transition: all 0.15s;
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .pill:hover { background: var(--control-hover); color: var(--text); }
+  .pill.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent-border); }
+
+  .zoom-controls { display: flex; align-items: center; gap: 2px; background: var(--control-bg);
+    border-radius: 10px; padding: 3px; }
+  .zoom-preset { background: none; border: none; color: var(--muted); padding: 6px 9px; cursor: pointer;
+    font-size: 12px; font-weight: 600; border-radius: 8px; transition: all 0.15s; }
+  .zoom-preset:hover { color: var(--text); }
+  .zoom-preset.active { background: var(--accent); color: var(--accent-text); }
+  .zoom-custom { display: flex; align-items: center; gap: 1px; margin-left: 4px; color: var(--muted); font-size: 12px; }
+  .zoom-input { width: 42px; background: var(--control-bg); border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 5px 4px; font-size: 12px; font-weight: 600; text-align: center; outline: none; }
+  .zoom-input:focus { border-color: var(--accent-text); }
+
+  .btn { background: var(--control-bg); color: var(--muted); padding: 6px 13px; border-radius: 8px;
+    font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid transparent; transition: all 0.15s;
+    white-space: nowrap; }
+  .btn:hover { background: var(--control-hover); color: var(--text); }
+  .btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent-border); }
+  .btn.primary:hover { background: var(--accent-strong); }
+  .btn.close:hover { background: var(--danger); color: var(--danger-text); border-color: var(--danger); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .play-group { display: flex; align-items: center; gap: 8px; }
+  .play-group label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+  .play-group input[type=range] { width: 90px; }
+
+  /* ---------- Info bar ---------- */
+  .info-bar { display: flex; padding: 5px 16px; background: var(--panel); border-bottom: 1px solid var(--border); }
+  .info-tag { flex: 1; text-align: center; background: var(--control-bg); color: var(--muted);
+    padding: 4px 12px; border-radius: 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ---------- Stage (view area) ---------- */
+  .stage { flex: 1; position: relative; overflow: hidden; min-height: 0; background: var(--viewport-bg); }
+
+  .compare-container { position: absolute; inset: 0; display: none; overflow: hidden; }
+  /* .pannable marks every view region that supports drag-to-pan. "grab"/"grabbing"
+     give the familiar pan cursor; touch-action:none stops the browser from
+     hijacking pointer gestures (so our pan/zoom works on touch devices too). */
+  .pannable { cursor: grab; touch-action: none; }
+  .pannable.active-drag { cursor: grabbing; }
+  .video-wrapper { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+  .video-inner { position: relative; width: 100%; height: 100%; }
+  .compare-container img { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 100%; height: 100%; object-fit: contain; user-select: none; -webkit-user-drag: none;
+    image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; image-rendering: pixelated; }
+
+  .split-clip { position: absolute; inset: 0; overflow: hidden; }
+  .slider { position: absolute; transform: translate(-50%, -50%); width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center; cursor: move; z-index: 15; touch-action: none; }
+  .slider-handle { width: 36px; height: 36px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.9);
+    background: rgba(0,0,0,0.5); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center;
+    box-shadow: var(--shadow); transition: transform 0.12s; color: #fff; font-size: 16px; user-select: none; }
+  .slider-handle:hover { transform: scale(1.1); }
+
+  /* The visible divider line. pointer-events:none so it never intercepts clicks/
+     drags; its length/rotation are set from JS (updateDividerLine) to match the
+     clip edge at any aspect ratio. */
+  .divider-line { position: absolute; background: rgba(255,255,255,0.9); box-shadow: 0 0 6px rgba(0,0,0,0.5);
+    z-index: 12; pointer-events: none; transform: translate(-50%,-50%); display: none; }
+
+  .side-by-side { position: absolute; inset: 0; display: none; align-items: stretch; }
+  .side-by-side .panel { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center;
+    position: relative; overflow: hidden; }
+  .side-by-side .panel img { position: absolute; top: 50%; left: 50%; object-fit: contain; user-select: none; -webkit-user-drag: none;
+    image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; image-rendering: pixelated; }
+  .side-by-side .divider { width: 2px; background: var(--border); align-self: stretch; }
+
+  .fullscreen-btn { position: absolute; top: 10px; right: 10px; z-index: 20; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text); border-radius: 8px; padding: 6px 11px; font: inherit;
+    font-size: 12px; font-weight: 600; cursor: pointer; }
+  .fullscreen-btn:hover { background: var(--control-hover); }
+  .compare-container:fullscreen { background: #111827; width: 100%; height: 100%; }
+  .compare-container:fullscreen .fullscreen-btn { display: none; }
+
+  .result-panel { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center;
+    justify-content: center; gap: 14px; padding: 20px; overflow: hidden; }
+  /* Combine/Diff result image. Using max-width/max-height:100% with auto
+     width/height lets the (possibly non-square) canvas scale to fit while keeping
+     its aspect ratio, and background:transparent removes the white letterbox
+     box that previously appeared behind odd-sized results. */
+  .result-panel img { position: absolute; top: 50%; left: 50%; max-width: 100%; max-height: 100%;
+    width: auto; height: auto; object-fit: contain; user-select: none; -webkit-user-drag: none;
+    box-shadow: var(--shadow); border-radius: 8px; background: transparent;
+    image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; image-rendering: pixelated; }
+  .result-panel #resultDownload { position: relative; z-index: 2; margin-top: auto; }
+
+  /* ---------- Combine / Diff controls ---------- */
+  .combine-controls { background: var(--panel); border-top: 1px solid var(--border); padding: 12px 16px;
+    display: none; flex-wrap: wrap; gap: 14px 22px; }
+  .combine-controls .ctl { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .combine-controls .ctl label { font-weight: 600; color: var(--text); }
+  .combine-controls input[type=range] { width: 120px; }
+  .combine-controls input[type=color] { width: 34px; height: 28px; border: 1px solid var(--border); border-radius: 6px;
+    background: none; cursor: pointer; padding: 0; }
+  .combine-controls select { border: 1px solid var(--border); border-radius: 6px; background: var(--control-bg);
+    color: var(--text); padding: 5px 8px; font: inherit; font-size: 13px; }
+  .combine-controls .val { min-width: 38px; color: var(--text); font-weight: 600; }
+
+  /* ---------- Upload screen ---------- */
+  .upload-screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 28px; padding: 24px; overflow: auto; z-index: 40; }
+  .upload-screen h2 { font-size: 38px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; color: var(--text); }
+  .upload-screen .sub { color: var(--muted); font-size: 14px; margin-top: -16px; text-align: center; }
+  .upload-card { background: var(--control-bg); border: 1px solid var(--border); border-radius: 20px; padding: 22px; display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+  .upload-box { width: 250px; height: 260px; border: 2px dashed var(--border); border-radius: 14px; display: flex;
+    flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.25s ease;
+    position: relative; overflow: hidden; background: var(--panel); }
+  .upload-box:hover { border-color: var(--accent-text); }
+  .upload-box.dragover { border-color: var(--accent-text); background: var(--accent); }
+  .upload-box.has-file { border-color: var(--accent-text); border-style: solid; }
+  .upload-box .upload-icon { font-size: 48px; margin-bottom: 14px; }
+  .upload-box .label { color: var(--text); font-size: 15px; font-weight: 600; }
+  .upload-box .sublabel { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .upload-box .filename { color: var(--accent-text); font-size: 12px; margin-top: 8px; max-width: 220px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .upload-box input { display: none; }
+  .upload-box img.thumb { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  .upload-box .overlay-label { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.7); color: #fff; padding: 4px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; }
+  .btn-row { display: flex; gap: 12px; }
+  .footer-link { color: var(--muted); font-size: 13px; text-decoration: none; }
+  .footer-link:hover { color: var(--text); }
+
+  .toast { position: fixed; bottom: 20px; right: 20px; padding: 10px 18px; border-radius: 8px; color: #fff;
+    font-size: 13px; font-weight: 600; z-index: 50; animation: fadeIn 0.25s, fadeOut 0.3s 2.7s forwards; }
+  .toast.error { background: #dc3545; }
+  .toast.success { background: #28a745; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; transform: translateY(16px); } }
+
+  @media (max-width: 720px) {
+    .header { padding: 8px 10px; }
+    .logo { display: none; }
+    .upload-box { width: 200px; height: 210px; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- ===================== UPLOAD SCREEN ===================== -->
+  <div class="upload-screen" id="uploadScreen">
+    <h2>ImageCompare</h2>
+    <div class="sub">Drop two images, paste from clipboard (Ctrl+V), or click to browse. Nothing leaves your machine.</div>
+    <div class="upload-card">
+      <div class="upload-box" id="uploadA" onclick="document.getElementById('fileA').click()" title="Click to browse, drop, or paste (Ctrl+V)">
+        <span class="upload-icon">&#128247;</span>
+        <span class="label">Drop image here or click</span>
+        <span class="sublabel">Image A (Left / Before)</span>
+        <span class="filename" id="nameA"></span>
+        <input type="file" id="fileA" accept="image/*">
+      </div>
+      <div class="upload-box" id="uploadB" onclick="document.getElementById('fileB').click()" title="Click to browse, drop, or paste (Ctrl+V)">
+        <span class="upload-icon">&#128247;</span>
+        <span class="label">Drop image here or click</span>
+        <span class="sublabel">Image B (Right / After)</span>
+        <span class="filename" id="nameB"></span>
+        <input type="file" id="fileB" accept="image/*">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn primary" id="compareBtn" disabled title="Start comparison">Compare</button>
+      <button class="btn" id="uploadResetBtn" disabled title="Clear selected images">Reset</button>
+    </div>
+    <div class="footer-link">Single-file · offline · MIT · merged from beforeafter, compare-image, image-swipe-compare</div>
+  </div>
+
+  <!-- ===================== HEADER ===================== -->
+  <div class="header" id="header" style="display:none;">
+    <div class="header-left">
+      <div class="logo">ImageCompare</div>
+      <div class="seg" id="viewToggle">
+        <button id="splitBtn" class="active" title="Split slider view">Split</button>
+        <button id="sideBtn" title="Side-by-side view">Side by Side</button>
+        <button id="combineBtn" title="Combine into one image">Combine</button>
+        <button id="diffBtn" title="Pixel-difference view">Diff</button>
+        <button id="soloBtn" title="Show one image; press and hold to reveal the other">Solo</button>
+      </div>
+      <div class="seg" id="sliderModeGroup">
+        <button data-mode="vertical" class="active" title="Split left / right">| Vertical</button>
+        <button data-mode="diagonal-slash" title="Split diagonally /">/ Diagonal</button>
+        <button data-mode="diagonal-backslash" title="Split diagonally \">\ Diagonal</button>
+        <button data-mode="horizontal" title="Split top / bottom">— Horizontal</button>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="zoom-controls" id="zoomGroup">
+        <button class="zoom-preset" data-zoom="1" title="Zoom 100%">100%</button>
+        <button class="zoom-preset" data-zoom="2" title="Zoom 200%">200%</button>
+        <button class="zoom-preset" data-zoom="3" title="Zoom 300%">300%</button>
+        <button class="zoom-preset" data-zoom="4" title="Zoom 400%">400%</button>
+        <button class="zoom-preset" data-zoom="5" title="Zoom 500%">500%</button>
+        <span class="zoom-custom"><input class="zoom-input" id="zoomInput" type="text" inputmode="numeric" title="Custom zoom percentage (type any value)">%</span>
+      </div>
+      <div class="play-group" id="playGroup">
+        <button class="btn" id="animateToggleBtn" title="Play / pause auto-sweep animation">Play</button>
+        <label title="Sweep speed (seconds per pass)">Speed <input id="speedInput" type="range" min="0.5" max="8" step="0.5" value="2.5"><span id="speedValue">2.5s</span></label>
+      </div>
+      <button class="btn" id="fullscreenBtn" title="Toggle fullscreen">Full Screen</button>
+      <button class="btn" id="captureBtn" title="Save current view as PNG">Capture</button>
+      <button class="btn" id="soloBaseBtn" style="display:none;" title="Swap which image is shown at rest">Base: A</button>
+      <button class="btn" id="themeBtn" title="Toggle light / dark">Theme</button>
+      <button class="btn" id="resetBtn" title="Reset zoom, pan and slider">Reset</button>
+      <button class="btn close" id="backBtn" title="Back to upload">Close</button>
+    </div>
+  </div>
+
+  <div class="info-bar" id="infoBar" style="display:none;">
+    <span class="info-tag" id="infoTagA"></span>
+    <span class="info-tag" id="infoTagB"></span>
+  </div>
+
+  <!-- ===================== STAGE ===================== -->
+  <div class="stage" id="stage">
+    <!-- Split view -->
+    <div class="compare-container pannable" id="compareView">
+      <div class="video-wrapper"><div class="video-inner">
+        <img id="imgB" alt="Image B">
+        <div class="split-clip" id="splitClip"><img id="imgA" alt="Image A"></div>
+      </div></div>
+      <button class="fullscreen-btn" id="fullscreenBtn2" type="button" title="Toggle fullscreen">Full Screen</button>
+      <div class="divider-line" id="dividerLine"></div>
+      <div class="slider" id="slider"><div class="slider-handle" id="sliderHandle">&#8644;</div></div>
+    </div>
+
+    <!-- Side by side -->
+    <div class="side-by-side pannable" id="sideBySide">
+      <div class="panel"><img id="imgA2" alt="Image A"></div>
+      <div class="divider"></div>
+      <div class="panel"><img id="imgB2" alt="Image B"></div>
+    </div>
+
+    <!-- Combine / Diff result -->
+    <div class="result-panel pannable" id="resultPanel">
+      <img id="resultImage" alt="Result">
+      <button class="btn primary" id="resultDownload">Download</button>
+    </div>
+  </div>
+
+  <!-- ===================== COMBINE / DIFF CONTROLS ===================== -->
+  <div class="combine-controls" id="combineControls">
+    <div class="ctl"><label>Gap</label><input type="range" min="0" max="50" value="0" id="gapControl" title="Gap between images"><span class="val" id="gapValue">0px</span></div>
+    <div class="ctl"><label>Background</label><input type="color" value="#ffffff" id="bgColor" title="Background color"></div>
+    <div class="ctl"><label>Label Size</label><input type="range" min="6" max="64" value="20" id="fontSize" title="Label font size"><span class="val" id="fontValue">20px</span></div>
+    <div class="ctl"><label>Label Color</label><input type="color" value="#000000" id="labelColor" title="Label color"></div>
+    <div class="ctl"><label>Format</label>
+      <select id="formatSelect" title="Export format"><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="webp">WEBP</option></select>
+    </div>
+    <div class="ctl"><label>Quality</label><input type="range" min="0" max="100" value="92" id="qualityControl" title="Export quality (JPEG)"><span class="val" id="qualityValue">92%</span></div>
+  </div>
+
+<script>
+// ===========================================================================
+// ImageCompare-Ultimate  —  application script
+// ===========================================================================
+// All logic below is plain ES2017+ running directly in the browser. "use
+// strict" is enabled so accidental globals and silent failures surface early.
+"use strict";
+
+/**
+ * Element references.
+ * ---------------------------------------------------------------------------
+ * Every DOM node we touch repeatedly is looked up ONCE here and cached in a
+ * const. This avoids repeated (and slower) getElementById / querySelector
+ * calls inside hot paths such as the pointermove / wheel handlers, and keeps a
+ * single source of truth for the element handles used throughout the file.
+ * The IDs correspond to the markup in the <body> above.
+ */
+/* ============ Element refs ============ */
+const uploadScreen = document.getElementById('uploadScreen');
+const header = document.getElementById('header');
+const infoBar = document.getElementById('infoBar');
+const stage = document.getElementById('stage');
+const fileA = document.getElementById('fileA');
+const fileB = document.getElementById('fileB');
+const uploadA = document.getElementById('uploadA');
+const uploadB = document.getElementById('uploadB');
+const nameA = document.getElementById('nameA');
+const nameB = document.getElementById('nameB');
+const compareBtn = document.getElementById('compareBtn');
+const uploadResetBtn = document.getElementById('uploadResetBtn');
+const compareView = document.getElementById('compareView');
+const sideBySide = document.getElementById('sideBySide');
+const resultPanel = document.getElementById('resultPanel');
+const imgA = document.getElementById('imgA');
+const imgB = document.getElementById('imgB');
+const imgA2 = document.getElementById('imgA2');
+const imgB2 = document.getElementById('imgB2');
+const splitClip = document.getElementById('splitClip');
+const dividerLine = document.getElementById('dividerLine');
+const slider = document.getElementById('slider');
+const sliderHandle = document.getElementById('sliderHandle');
+const resultImage = document.getElementById('resultImage');
+const resultDownload = document.getElementById('resultDownload');
+const infoTagA = document.getElementById('infoTagA');
+const infoTagB = document.getElementById('infoTagB');
+
+const viewToggle = document.getElementById('viewToggle');
+const sliderModeGroup = document.getElementById('sliderModeGroup');
+const zoomGroup = document.getElementById('zoomGroup');
+const playGroup = document.getElementById('playGroup');
+const fullscreenBtn = document.getElementById('fullscreenBtn');
+const fullscreenBtn2 = document.getElementById('fullscreenBtn2');
+const captureBtn = document.getElementById('captureBtn');
+const themeBtn = document.getElementById('themeBtn');
+const resetBtn = document.getElementById('resetBtn');
+const backBtn = document.getElementById('backBtn');
+const splitBtn = document.getElementById('splitBtn');
+const sideBtn = document.getElementById('sideBtn');
+const combineBtn = document.getElementById('combineBtn');
+const diffBtn = document.getElementById('diffBtn');
+const soloBtn = document.getElementById('soloBtn');
+const soloBaseBtn = document.getElementById('soloBaseBtn');
+
+const zoomInput = document.getElementById('zoomInput');
+const zoomPresets = Array.from(document.querySelectorAll('.zoom-preset'));
+const animateToggleBtn = document.getElementById('animateToggleBtn');
+const speedInput = document.getElementById('speedInput');
+const speedValue = document.getElementById('speedValue');
+
+const combineControls = document.getElementById('combineControls');
+const gapControl = document.getElementById('gapControl');
+const gapValue = document.getElementById('gapValue');
+const bgColor = document.getElementById('bgColor');
+const fontSize = document.getElementById('fontSize');
+const fontValue = document.getElementById('fontValue');
+const labelColor = document.getElementById('labelColor');
+const formatSelect = document.getElementById('formatSelect');
+const qualityControl = document.getElementById('qualityControl');
+const qualityValue = document.getElementById('qualityValue');
+
+/* ============ State ============ */
+/**
+ * Mutable application state.
+ * ---------------------------------------------------------------------------
+ * Kept in module-scope `let` bindings so every handler shares the same view
+ * of the world. resetView()/setViewMode() reset most of these so mode switches
+ * always start from a clean, predictable state.
+ */
+let fileAObj = null, fileBObj = null;          // the two File objects chosen / pasted / dropped
+let sliderPos = 0.5, handleX = 0.5, handleY = 0.5; // slider position (0..1) + free 2D handle coords (0..1)
+let sliderMode = 'vertical';                   // 'vertical' | 'horizontal' | 'diagonal-slash' | 'diagonal-backslash'
+let mode = 'split';                            // 'split' | 'side' | 'combine' | 'diff' | 'solo'
+let soloBase = 'A';                           // which image (A or B) is shown at rest in Solo mode
+let zoom = 1, panX = 0, panY = 0;           // current zoom factor and pan offset (in CSS px, pre-zoom)
+let isDragging = false, isPanning = false;   // gesture flags: slider handle drag vs. canvas pan
+let panStartX, panStartY, panStartPanX, panStartPanY; // captured at gesture start for delta math
+let pointerDownX = 0, pointerDownY = 0;      // last pointerdown location (used by Solo reveal→pan handoff)
+let soloRevealPending = false, soloMoved = false, soloStartX = 0, soloStartY = 0;
+                                                // Solo: press-and-hold reveals the other image until the user
+                                                // drags (>5px) — then we cancel the reveal and switch to panning.
+let animationFrameId = null, animationStartTime = 0, animationPhase = 0;
+                                                // autoplay sweep: rAF handle, timestamp origin, and the sine
+                                                // phase so we resume smoothly from the current slider position.
+
+/* ============ Helpers ============ */
+/**
+ * Clamp a number into the inclusive [min, max] range.
+ * @param {number} v   - value to constrain
+ * @param {number} min - lower bound
+ * @param {number} max - upper bound
+ * @returns {number} the constrained value
+ */
+function clamp(v, min, max) { return Math.max(min, Math.min(v, max)); }
+
+/**
+ * Show a transient toast notification in the bottom-right corner.
+ * Auto-removes itself after ~3s (CSS handles the fade-out animation).
+ * @param {string} message - text to display
+ * @param {'success'|'error'} [type='success'] - toast color/style variant
+ * @credit original toast pattern adapted from compare-image (tchung1970, MIT)
+ */
+function showToast(message, type = 'success') {
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = message;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+/* ============ Theme ============ */
+/**
+ * Initialize the color theme from localStorage (key "ictheme").
+ * Dark is the default; if a previous choice of 'light' or 'dark' was saved we
+ * apply it immediately so there is no flash of the wrong theme on load.
+ * @credit theme persistence pattern adapted from compare-image (tchung1970, MIT)
+ */
+(function initTheme() {
+  const saved = localStorage.getItem('ictheme');
+  if (saved === 'light' || saved === 'dark') document.documentElement.setAttribute('data-theme', saved);
+})();
+/**
+ * Toggle light <-> dark and persist the choice to localStorage.
+ */
+themeBtn.addEventListener('click', () => {
+  const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('ictheme', next);
+  showToast(`Theme: ${next}`);
+});
+
+/* ============ Upload ============ */
+/**
+ * Render a preview thumbnail (and filename overlay) inside an upload box.
+ * Creates the <img.thumb> + <span.overlay-label> lazily on first use, hides
+ * the placeholder icon/label, then loads the image to record the natural
+ * width/height on the box dataset so both boxes can be normalized to a common
+ * aspect ratio via normalizeUploadBoxes().
+ * @param {HTMLElement} box  - the .upload-box element to populate
+ * @param {File} file        - the image File to preview
+ * @credit paste/thumbnail approach adapted from beforeafter (Yani Iliev, MIT)
+ */
+function showThumbnail(box, file) {
+  let thumb = box.querySelector('img.thumb');
+  if (!thumb) {
+    thumb = document.createElement('img');
+    thumb.className = 'thumb';
+    box.appendChild(thumb);
+    const lbl = document.createElement('span');
+    lbl.className = 'overlay-label';
+    box.appendChild(lbl);
+  }
+  const objUrl = URL.createObjectURL(file);
+  thumb.src = objUrl;
+  box.querySelector('.overlay-label').textContent = file.name;
+  const ic = box.querySelector('.upload-icon'); if (ic) ic.style.display = 'none';
+  box.querySelector('.label').style.display = 'none';
+  box.querySelector('.filename').style.display = 'none';
+  const temp = new Image();
+  temp.onload = () => { box.dataset.natW = temp.naturalWidth; box.dataset.natH = temp.naturalHeight; normalizeUploadBoxes(); };
+  temp.src = objUrl;
+}
+
+/**
+ * Resize both upload boxes to share the widest image's aspect ratio, so the two
+ * drop targets line up nicely regardless of whether the images are landscape,
+ * portrait or square. Each box is kept within a max footprint and a min size.
+ * @credit layout normalization adapted from beforeafter (Yani Iliev, MIT)
+ */
+function normalizeUploadBoxes() {
+  const boxes = [uploadA, uploadB];
+  const ratios = boxes.map(b => (b.dataset.natW && b.dataset.natH) ? b.dataset.natW / b.dataset.natH : null).filter(r => r !== null);
+  if (!ratios.length) return;
+  const ratio = Math.max(...ratios);
+  const maxW = 480, maxH = 400, minW = 200, minH = 160;
+  let w, h;
+  if (ratio >= 1) { w = maxW; h = Math.round(w / ratio); if (h < minH) { h = minH; w = Math.round(h * ratio); } }
+  else { h = maxH; w = Math.round(h * ratio); if (w < minW) { w = minW; h = Math.round(w / ratio); } }
+  boxes.forEach(b => { b.style.width = w + 'px'; b.style.height = h + 'px'; });
+}
+
+/**
+ * Assign a newly selected image to slot A (image A / Left / Before).
+ * @param {File} file
+ */
+function handleFileA(file) {
+  if (file && file.type.startsWith('image/')) {
+    fileAObj = file; nameA.textContent = file.name; uploadA.classList.add('has-file');
+    showThumbnail(uploadA, file); checkReady();
+  }
+}
+/**
+ * Assign a newly selected image to slot B (image B / Right / After).
+ * @param {File} file
+ */
+function handleFileB(file) {
+  if (file && file.type.startsWith('image/')) {
+    fileBObj = file; nameB.textContent = file.name; uploadB.classList.add('has-file');
+    showThumbnail(uploadB, file); checkReady();
+  }
+}
+fileA.addEventListener('change', () => handleFileA(fileA.files[0]));
+fileB.addEventListener('change', () => handleFileB(fileB.files[0]));
+
+/**
+ * Wire drag-and-drop onto a single upload box.
+ * The box itself handles its own drop; drop elsewhere on the upload screen
+ * (handled separately below) is deliberately NOT stopped here so the screen's
+ * catch-all drop handler can auto-distribute files to the empty slots.
+ * @param {HTMLElement} box     - the drop target box
+ * @param {(file:File)=>void} handler - called with the dropped image File
+ * @credit drag/drop wiring adapted from compare-image (tchung1970, MIT)
+ */
+function setupDrop(box, handler) {
+  box.addEventListener('dragover', e => { e.preventDefault(); box.classList.add('dragover'); });
+  box.addEventListener('dragleave', () => box.classList.remove('dragover'));
+  box.addEventListener('drop', e => {
+    e.preventDefault(); e.stopPropagation(); box.classList.remove('dragover');
+    const f = e.dataTransfer.files[0]; if (f) handler(f);
+  });
+}
+setupDrop(uploadA, handleFileA);
+setupDrop(uploadB, handleFileB);
+
+/**
+ * Drop anywhere on the upload screen (outside either box) -> auto-fill the
+ * empty slots: first image -> A, second -> B. Lets the user drop two files at
+ * once onto the page without aiming at a specific box.
+ * @credit multi-file drop distribution adapted from compare-image (tchung1970, MIT)
+ */
+uploadScreen.addEventListener('dragover', e => e.preventDefault());
+uploadScreen.addEventListener('drop', e => {
+  e.preventDefault();
+  const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
+  if (files.length >= 2) { handleFileA(files[0]); handleFileB(files[1]); return; }
+  if (files.length >= 1) {
+    if (!fileAObj) handleFileA(files[0]);
+    else if (!fileBObj) handleFileB(files[0]);
+  }
+});
+
+/**
+ * Wire clipboard paste (Ctrl/Cmd+V) onto a focused upload box. A pasted image
+ * blob is wrapped in a File named 'pasted.png' and routed to the box's handler.
+ * @param {HTMLElement} box
+ * @param {(file:File)=>void} handler
+ * @credit clipboard paste adapted from beforeafter (Yani Iliev, MIT)
+ */
+function setupPaste(box, handler) {
+  box.tabIndex = 0;
+  box.addEventListener('paste', e => {
+    const items = e.clipboardData.items;
+    for (const it of items) {
+      if (it.type.indexOf('image') !== -1) {
+        const blob = it.getAsFile();
+        handler(new File([blob], 'pasted.png', { type: blob.type }));
+        e.preventDefault(); return;
+      }
+    }
+  });
+}
+setupPaste(uploadA, handleFileA);
+setupPaste(uploadB, handleFileB);
+/** Document-level paste: only active while the upload screen is visible; fills
+ *  the first empty slot (A, then B) so a single paste "just works". */
+document.addEventListener('paste', e => {
+  if (uploadScreen.style.display !== 'none') return;
+  const items = e.clipboardData.items;
+  for (const it of items) {
+    if (it.type.indexOf('image') !== -1) {
+      const blob = it.getAsFile(); const f = new File([blob], 'pasted.png', { type: blob.type });
+      if (!fileAObj) handleFileA(f); else if (!fileBObj) handleFileB(f);
+      e.preventDefault(); return;
+    }
+  }
+});
+
+/**
+ * Update the enabled/disabled state of Compare / Reset buttons based on whether
+ * at least one (Reset) or both (Compare) images have been provided.
+ */
+function checkReady() {
+  compareBtn.disabled = !(fileAObj && fileBObj);
+  uploadResetBtn.disabled = !(fileAObj || fileBObj);
+}
+/** Clear both selections, reset the upload boxes to their placeholder state, and
+ *  re-evaluate button availability. */
+uploadResetBtn.addEventListener('click', () => {
+  fileAObj = null; fileBObj = null; fileA.value = ''; fileB.value = '';
+  nameA.textContent = ''; nameB.textContent = '';
+  uploadA.classList.remove('has-file'); uploadB.classList.remove('has-file');
+  [uploadA, uploadB].forEach(box => {
+    const th = box.querySelector('img.thumb'); if (th) th.remove();
+    const ol = box.querySelector('.overlay-label'); if (ol) ol.remove();
+    const ic = box.querySelector('.upload-icon'); if (ic) ic.style.display = '';
+    box.querySelector('.label').style.display = '';
+    box.querySelector('.filename').style.display = '';
+    box.style.width = ''; box.style.height = '';
+    delete box.dataset.natW; delete box.dataset.natH;
+  });
+  checkReady();
+});
+
+/* ============ Start compare ============ */
+/** Launch the comparison workspace once both images are present.
+ *  Sets the <img> sources, hides the upload screen, reveals the header/info
+ *  bar, resets the view, then waits for both images to load before sizing the
+ *  split/side-by-side layouts (we must know natural sizes first). */
+compareBtn.addEventListener('click', startCompare);
+function startCompare() {
+  const urlA = URL.createObjectURL(fileAObj);
+  const urlB = URL.createObjectURL(fileBObj);
+  imgA.src = urlA; imgB.src = urlB; imgA2.src = urlA; imgB2.src = urlB;
+  uploadScreen.style.display = 'none';
+  header.style.display = 'flex';
+  infoBar.style.display = 'flex';
+  zoom = 1; panX = 0; panY = 0; sliderPos = 0.5;
+  setViewMode('split');
+  let loaded = 0;
+  const onLoad = () => { if (++loaded >= 2) { updateInfoTags(); setSplit(50); normalizeSideBySide(); } };
+  imgA.addEventListener('load', onLoad, { once: true });
+  imgB.addEventListener('load', onLoad, { once: true });
+}
+
+/**
+ * Populate the two info-bar tags with each file's name, extension and pixel
+ * resolution (read from the loaded image's natural dimensions).
+ * @credit info-bar pattern adapted from compare-image (tchung1970, MIT)
+ */
+function updateInfoTags() {
+  const ext = f => (f.name.split('.').pop() || '').toUpperCase();
+  const res = img => img.naturalWidth ? `${img.naturalWidth}×${img.naturalHeight}` : '';
+  infoTagA.textContent = `${fileAObj.name} (${ext(fileAObj)} ${res(imgA)})`;
+  infoTagB.textContent = `${fileBObj.name} (${ext(fileBObj)} ${res(imgB)})`;
+}
+
+/* ============ View modes ============ */
+/**
+ * Reset all view transforms and slider/handle positions to their defaults.
+ * Called unconditionally at the top of setViewMode() so every mode switch
+ * starts from a clean, predictable state (no leftover zoom/pan/slider).
+ */
+function resetView() {
+  zoom = 1; panX = 0; panY = 0; sliderPos = 0.5; handleX = 0.5; handleY = 0.5;
+  updateTransform();
+}
+
+/**
+ * Switch to a view mode and (re)configure which UI regions are visible/active.
+ * @param {'split'|'side'|'combine'|'diff'|'solo'} m - target mode
+ * Side effects: toggles display of compareView / sideBySide / resultPanel,
+ * the slider + mode-group (split only), play group, fullscreen/capture/solo
+ * buttons, the combine/diff controls, and highlights the active toggle button.
+ * Then renders the appropriate content (combine/diff canvas, side layout, or
+ * split/solo setup) and stops any running animation.
+ * @credit view-mode switching pattern adapted from compare-image (tchung1970, MIT)
+ */
+function setViewMode(m) {
+  mode = m;
+  resetView();
+  const isSplit = m === 'split', isSide = m === 'side', isSolo = m === 'solo';
+  const isCombo = m === 'combine' || m === 'diff';
+  compareView.style.display = (isSplit || isSolo) ? 'block' : 'none';
+  sideBySide.style.display = isSide ? 'flex' : 'none';
+  resultPanel.style.display = isCombo ? 'flex' : 'none';
+  slider.style.display = isSplit ? 'flex' : 'none';
+  sliderModeGroup.style.display = isSplit ? 'flex' : 'none';
+  zoomGroup.style.display = 'flex';
+  playGroup.style.display = isSplit ? 'flex' : 'none';
+  fullscreenBtn.style.display = (isSplit || isSolo) ? 'inline-flex' : 'none';
+  captureBtn.style.display = (isSplit || isSide) ? 'inline-flex' : 'none';
+  soloBaseBtn.style.display = isSolo ? 'inline-flex' : 'none';
+  combineControls.style.display = isCombo ? 'flex' : 'none';
+
+  // Highlight the active mode toggle button.
+  [splitBtn, sideBtn, combineBtn, diffBtn, soloBtn].forEach(b => b.classList.remove('active'));
+  (isSplit ? splitBtn : isSide ? sideBtn : isSolo ? soloBtn : m === 'combine' ? combineBtn : diffBtn).classList.add('active');
+
+  stopAnimation();
+  if (isCombo) { m === 'combine' ? renderCombine() : renderDiff(); }
+  if (isSide) requestAnimationFrame(normalizeSideBySide);
+  if (isSplit) requestAnimationFrame(() => setSplit(sliderPos * 100));
+  if (isSolo) soloShowBase();
+}
+
+/**
+ * Hide every view region and the slider/divider, and clear any lingering
+ * active-drag cursor state. Used when returning to the upload screen so the
+ * split slider / divider line cannot "leak" behind it.
+ */
+function hideAllViews() {
+  compareView.style.display = 'none';
+  sideBySide.style.display = 'none';
+  resultPanel.style.display = 'none';
+  slider.style.display = 'none';
+  dividerLine.style.display = 'none';
+  compareView.classList.remove('active-drag');
+  sideBySide.classList.remove('active-drag');
+  resultPanel.classList.remove('active-drag');
+}
+/** Show the base image fully (Solo mode at rest: A => clip at 100%, B => 0%). */
+function soloShowBase() { setSplit(soloBase === 'A' ? 100 : 0); }
+/** Show the *other* image fully (Solo mode while pressed: A => 0%, B => 100%). */
+function soloShowOther() { setSplit(soloBase === 'A' ? 0 : 100); }
+splitBtn.addEventListener('click', () => setViewMode('split'));
+sideBtn.addEventListener('click', () => setViewMode('side'));
+combineBtn.addEventListener('click', () => setViewMode('combine'));
+diffBtn.addEventListener('click', () => setViewMode('diff'));
+soloBtn.addEventListener('click', () => setViewMode('solo'));
+/** Swap which image Solo mode shows at rest, and re-render the base view. */
+soloBaseBtn.addEventListener('click', () => {
+  soloBase = soloBase === 'A' ? 'B' : 'A';
+  soloBaseBtn.textContent = 'Base: ' + soloBase;
+  soloShowBase();
+});
+
+/* ---- Single source of truth for "which element is the active view" ---- */
+/**
+ * Return the DOM container that currently owns panning / zoom / pointer
+ * capture for the active mode. Centralizing this keeps the pan and wheel
+ * handlers consistent across all five modes (split+solo use compareView,
+ * side uses sideBySide, combine/diff use resultPanel).
+ * @returns {HTMLElement}
+ */
+function getActiveContainer() {
+  if (mode === 'side') return sideBySide;
+  if (mode === 'combine' || mode === 'diff') return resultPanel;
+  return compareView; // split + solo
+}
+
+/* ============ Slider modes (diagonal support) ============ */
+/**
+ * Wire the slider-mode toggle buttons (vertical / diagonal-/ / diagonal-\ /
+ * horizontal). Selecting a mode updates sliderMode and re-applies the current
+ * split so the clip + divider immediately reflect the new geometry.
+ * @credit diagonal modes adapted from image-swipe-compare (hhkaos, MIT)
+ */
+document.querySelectorAll('#sliderModeGroup button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#sliderModeGroup button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    sliderMode = btn.dataset.mode;
+    setSplit(sliderPos * 100);
+  });
+});
+
+/* ---- Geometry (handles free 2D handle for diagonal modes) ---- */
+/**
+ * Clip a convex polygon against a half-plane defined by `evaluate(point)`.
+ * `evaluate` returns <0 for points on the "keep" side and >0 for the "discard"
+ * side; the boundary is evaluate === 0. This is the classic Sutherland–Hodgman
+ * single-plane clip specialized to a line, operating in normalized 0..1 space.
+ * @param {Array<{x:number,y:number}>} points - polygon vertices (CCW)
+ * @param {(p:{x:number,y:number})=>number} evaluate - signed distance fn
+ * @returns {Array<{x:number,y:number}>} the clipped (kept) polygon vertices
+ */
+function clipPolygonWithHalfPlane(points, evaluate) {
+  const out = [];
+  for (let i = 0; i < points.length; i++) {
+    const cur = points[i], nxt = points[(i + 1) % points.length];
+    const av = evaluate(cur), bv = evaluate(nxt);
+    const ci = av <= 0, ni = bv <= 0;
+    if (ci && ni) out.push(nxt);
+    else if (ci && !ni) out.push({ x: cur.x + (nxt.x - cur.x) * av / (av - bv), y: cur.y + (nxt.y - cur.y) * av / (av - bv) });
+    else if (!ci && ni) { out.push({ x: cur.x + (nxt.x - cur.x) * av / (av - bv), y: cur.y + (nxt.y - cur.y) * av / (av - bv) }); out.push(nxt); }
+  }
+  return out;
+}
+/**
+ * Compute the clip polygon (in 0..1 normalized space) for the LEFT/BEFORE image
+ * given the current sliderMode + handle position. For axis-aligned modes this is
+ * a simple rectangle; for diagonal modes it is the unit square clipped by the
+ * line through the handle, so image A shows on one side and image B on the other.
+ * @returns {Array<{x:number,y:number}>}
+ */
+function getLeftClipPoints() {
+  const rect = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }];
+  if (sliderMode === 'vertical') return [{ x: 0, y: 0 }, { x: handleX, y: 0 }, { x: handleX, y: 1 }, { x: 0, y: 1 }];
+  if (sliderMode === 'horizontal') return [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: handleY }, { x: 0, y: handleY }];
+  if (sliderMode === 'diagonal-slash') return clipPolygonWithHalfPlane(rect, p => p.x + p.y - (handleX + handleY));
+  return clipPolygonWithHalfPlane(rect, p => p.y - p.x - (handleY - handleX));
+}
+/**
+ * Serialize normalized polygon points into a CSS clip-path() string.
+ * A degenerate (empty) polygon falls back to a zero-size triangle so nothing
+ * shows rather than an invalid value.
+ * @param {Array<{x:number,y:number}>} pts
+ * @returns {string} CSS clip-path value
+ */
+function polygonFromPoints(pts) {
+  if (!pts.length) return 'polygon(0% 0%, 0% 0%, 0% 0%)';
+  return 'polygon(' + pts.map(p => `${(p.x * 100).toFixed(2)}% ${(p.y * 100).toFixed(2)}%`).join(', ') + ')';
+}
+/**
+ * Convert a normalized cursor position (nx, ny in 0..1) into a 0..100 slider
+ * percentage for the given mode (averaging both axes for diagonals so the handle
+ * stays visually centered on the split line).
+ * @param {number} nx - normalized x in [0,1]
+ * @param {number} ny - normalized y in [0,1]
+ * @param {string} [mode=sliderMode]
+ * @returns {number} percentage 0..100
+ */
+function getSplitPercentageFromPoint(nx, ny, mode = sliderMode) {
+  if (mode === 'vertical') return clamp(nx * 100, 0, 100);
+  if (mode === 'horizontal') return clamp(ny * 100, 0, 100);
+  if (mode === 'diagonal-slash') return clamp(((nx + ny) / 2) * 100, 0, 100);
+  return clamp(((ny - nx + 1) / 2) * 100, 0, 100);
+}
+/**
+ * Set the slider from a normalized position value s (0..1), deriving the handle
+ * coordinates for the active mode and re-rendering the clip/divider.
+ * @param {number} s - normalized slider position 0..1
+ */
+function setSplitFromParam(s) {
+  sliderPos = clamp(s, 0, 1);
+  if (sliderMode === 'vertical') { handleX = sliderPos; handleY = 0.5; }
+  else if (sliderMode === 'horizontal') { handleX = 0.5; handleY = sliderPos; }
+  else if (sliderMode === 'diagonal-slash') { handleX = sliderPos; handleY = sliderPos; }
+  else { handleX = 1 - sliderPos; handleY = sliderPos; }
+  applySplit();
+}
+/** Convenience wrapper: set the slider from a 0..100 percentage. */
+function setSplit(percentage) { setSplitFromParam(percentage / 100); }
+/**
+ * Set the slider from a free 2D handle position (used by diagonal drag). For
+ * diagonal modes the scalar sliderPos is the midpoint of the two axes.
+ * @param {number} hx - normalized handle x 0..1
+ * @param {number} hy - normalized handle y 0..1
+ */
+function setHandleFree(hx, hy) {
+  handleX = clamp(hx, 0, 1); handleY = clamp(hy, 0, 1);
+  if (sliderMode === 'diagonal-slash') sliderPos = (handleX + handleY) / 2;
+  else if (sliderMode === 'diagonal-backslash') sliderPos = (handleY - handleX + 1) / 2;
+  applySplit();
+}
+/** Push the current slider/handle state into the DOM: clip image A, position
+ *  the slider handle, update ARIA value, and refresh the divider line. */
+function applySplit() {
+  splitClip.style.clipPath = polygonFromPoints(getLeftClipPoints());
+  slider.style.left = (handleX * 100) + '%';
+  slider.style.top = (handleY * 100) + '%';
+  slider.setAttribute('aria-valuenow', Math.round(sliderPos * 100));
+  updateDividerLine();
+}
+/**
+ * Position and orient the visible divider line to exactly match the clip edge.
+ * - Axis modes: a full-height or full-width 2px bar.
+ * - Diagonal modes: a line rotated to the clip-edge angle and lengthened to span
+ *   the whole diagonal (`len = hypot(w,h)*1.2`) so no ends are visible.
+ *   The rotation equals the pixel angle of the clip edge:
+ *     slash     -> atan2(w, h)      (slope matches x+y = const line)
+ *     backslash -> atan2(w, -h)     (slope matches y-x = const line)
+ *   Using atan2 keeps the divider collinear with the clip at ANY aspect ratio.
+ */
+function updateDividerLine() {
+  if (mode !== 'split') { dividerLine.style.display = 'none'; return; }
+  dividerLine.style.display = 'block';
+  dividerLine.style.left = (handleX * 100) + '%';
+  dividerLine.style.top = (handleY * 100) + '%';
+  if (sliderMode === 'vertical') {
+    dividerLine.style.width = '2px'; dividerLine.style.height = '100%'; dividerLine.style.transform = 'translate(-50%,-50%)';
+  } else if (sliderMode === 'horizontal') {
+    dividerLine.style.width = '100%'; dividerLine.style.height = '2px'; dividerLine.style.transform = 'translate(-50%,-50%)';
+  } else {
+    const r = compareView.getBoundingClientRect();
+    const w = r.width, h = r.height;
+    const rot = sliderMode === 'diagonal-slash'
+      ? Math.atan2(w, h)  * 180 / Math.PI
+      : Math.atan2(w, -h) * 180 / Math.PI;
+    const len = Math.max(10, Math.hypot(w, h) * 1.2);
+    dividerLine.style.width = '2px';
+    dividerLine.style.height = len + 'px';
+    dividerLine.style.transform = `translate(-50%,-50%) rotate(${rot}deg)`;
+  }
+}
+/**
+ * Map a viewport (clientX/Y) point to the slider, accounting for the current
+ * mode. For axis modes this resolves to a scalar split; for diagonal modes it
+ * sets the free 2D handle directly.
+ * @param {number} clientX
+ * @param {number} clientY
+ */
+function setSliderByClientPoint(clientX, clientY) {
+  const rect = compareView.getBoundingClientRect();
+  const nx = rect.width === 0 ? 0 : clamp(clientX - rect.left, 0, rect.width) / rect.width;
+  const ny = rect.height === 0 ? 0 : clamp(clientY - rect.top, 0, rect.height) / rect.height;
+  if (sliderMode === 'vertical' || sliderMode === 'horizontal') setSplit(getSplitPercentageFromPoint(nx, ny, sliderMode));
+  else setHandleFree(nx, ny);
+}
+
+/* ---- Slider drag (pointer) via its handle + pan (all modes, ungated) ---- */
+/**
+ * Slider handle pointerdown: begin dragging the slider and immediately move it
+ * to the pointer. The handle is the ONLY direct slider control (image drag pans
+ * instead of moving the slider). Stop any running autoplay first.
+ * @credit slider-handle interaction adapted from compare-image / image-swipe-compare (MIT)
+ */
+slider.addEventListener('pointerdown', e => {
+  stopAnimation();
+  isDragging = true;
+  slider.setPointerCapture(e.pointerId);
+  setSliderByClientPoint(e.clientX, e.clientY);
+});
+/**
+ * Begin a pan gesture on the active container: capture the start point + current
+ * pan, add the grabbing cursor, and take pointer capture so the drag continues
+ * even if the pointer leaves the element. Ungated — panning works at any zoom,
+ * in every mode (split, side, combine, diff, solo).
+ * @param {PointerEvent} e
+ */
+function beginPan(e) {
+  stopAnimation();
+  isPanning = true;
+  panStartX = e.clientX; panStartY = e.clientY;
+  panStartPanX = panX; panStartPanY = panY;
+  pointerDownX = e.clientX; pointerDownY = e.clientY;
+  const el = getActiveContainer();
+  el.classList.add('active-drag');
+  el.setPointerCapture(e.pointerId);
+}
+
+/**
+ * Start the Solo "reveal" gesture: on press, immediately show the OTHER image
+ * (press-and-hold to peek). If the user then drags more than 5px we treat it as
+ * a pan instead (handled in pointermove) and restore the base image.
+ * @param {PointerEvent} e
+ * @credit solo press-and-hold reveal adapted from compare-image (tchung1970, MIT)
+ */
+function startSoloReveal(e) {
+  stopAnimation();
+  soloRevealPending = true; soloMoved = false;
+  soloStartX = e.clientX; soloStartY = e.clientY;
+  soloShowOther();
+  getActiveContainer().setPointerCapture(e.pointerId);
+}
+
+/**
+ * Single global pointerdown handler for the stage. We ignore the upload screen,
+ * the result Download button, and anything inside the slider handle. For Solo
+ * mode we start a reveal; otherwise we begin panning. This replaced the old
+ * per-container handlers so pan/zoom behavior is identical across all modes.
+ */
+stage.addEventListener('pointerdown', e => {
+  if (uploadScreen.style.display !== 'none') return;
+  if (e.target === resultDownload) return;
+  if (slider.contains(e.target)) return;
+  if (mode === 'solo') { startSoloReveal(e); return; }
+  beginPan(e);
+});
+/**
+ * Global pointermove: routes to slider drag, solo reveal→pan handoff, or pan.
+ * Pan delta is divided by zoom so the image tracks the cursor 1:1 on screen
+ * regardless of magnification.
+ */
+window.addEventListener('pointermove', e => {
+  if (isDragging) { setSliderByClientPoint(e.clientX, e.clientY); return; }
+  if (mode === 'solo' && soloRevealPending) {
+    if (!soloMoved && Math.hypot(e.clientX - soloStartX, e.clientY - soloStartY) > 5) {
+      soloMoved = true; soloRevealPending = false; soloShowBase();
+      beginPan(e); return;
+    }
+  }
+  if (isPanning) {
+    panX = panStartPanX + (e.clientX - panStartX) / zoom;
+    panY = panStartPanY + (e.clientY - panStartY) / zoom;
+    updateTransform();
+  }
+});
+/**
+ * End any active gesture (slider drag or pan), restoring the base image if a
+ * Solo reveal was still pending, and clearing the grabbing cursor.
+ * @param {PointerEvent} e
+ */
+function endGesture(e) {
+  if (mode === 'solo' && soloRevealPending) { soloShowBase(); soloRevealPending = false; }
+  isDragging = false; isPanning = false;
+  const el = getActiveContainer(); if (el) el.classList.remove('active-drag');
+}
+window.addEventListener('pointerup', endGesture);
+window.addEventListener('pointercancel', endGesture);
+/** Leaving the split view during a pending Solo reveal restores the base image. */
+compareView.addEventListener('pointerleave', () => { if (mode === 'solo') { soloShowBase(); soloRevealPending = false; } });
+
+/* ============ Scroll to zoom (cursor-anchored, alias-free) ============ */
+/**
+ * Wheel handler: zoom toward the cursor so the point under the pointer stays
+ * fixed on screen. The math:
+ *   cx, cy      = pointer offset from the container's center
+ *   newZoom     = clamped zoom after multiplying by the wheel factor
+ *   panX += cx * (1/newZoom - 1/zoom)
+ * because the on-screen position of a content point is
+ *   center + zoom*(point + pan). To keep it constant we solve for the new pan.
+ * For side-by-side we anchor to whichever panel is under the cursor so each
+ * image zooms around its own center.
+ * @param {WheelEvent} e
+ * @credit cursor-anchored zoom math adapted from compare-image (tchung1970, MIT)
+ */
+function onWheel(e) {
+  if (uploadScreen.style.display !== 'none') return;
+  const container = getActiveContainer();
+  if (!container) return;
+  e.preventDefault();
+  let rect;
+  if (mode === 'side') {
+    // anchor to the panel currently under the cursor so each image zooms toward its own center
+    const panels = sideBySide.querySelectorAll('.panel');
+    const r = sideBySide.getBoundingClientRect();
+    const p = (e.clientX < r.left + panels[0].clientWidth) ? panels[0] : panels[1];
+    rect = p.getBoundingClientRect();
+  } else {
+    rect = container.getBoundingClientRect();
+  }
+  const cx = e.clientX - rect.left - rect.width / 2;
+  const cy = e.clientY - rect.top - rect.height / 2;
+  const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+  const newZoom = Math.min(100, Math.max(0.05, zoom * factor));
+  if (newZoom === zoom) return;
+  panX = panX + cx * (1 / newZoom - 1 / zoom);
+  panY = panY + cy * (1 / newZoom - 1 / zoom);
+  zoom = newZoom;
+  updateTransform();
+}
+stage.addEventListener('wheel', onWheel, { passive: false });
+
+/**
+ * Keyboard control of the slider for accessibility. Arrow keys move the split by
+ * a small step (2%) or a larger step (10%) when Shift is held. Axis modes move
+ * the scalar position; diagonal modes move the free 2D handle on both axes.
+ * @credit keyboard nav adapted from image-swipe-compare (hhkaos, MIT)
+ */
+slider.addEventListener('keydown', e => {
+  const step = (e.shiftKey ? 10 : 2) / 100;
+  if (sliderMode === 'vertical') {
+    if (e.key === 'ArrowLeft') { e.preventDefault(); stopAnimation(); setSplitFromParam(sliderPos - step); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); stopAnimation(); setSplitFromParam(sliderPos + step); }
+  } else if (sliderMode === 'horizontal') {
+    if (e.key === 'ArrowUp') { e.preventDefault(); stopAnimation(); setSplitFromParam(sliderPos - step); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); stopAnimation(); setSplitFromParam(sliderPos + step); }
+  } else {
+    let m = false;
+    if (e.key === 'ArrowLeft') { handleX = clamp(handleX - step, 0, 1); m = true; }
+    if (e.key === 'ArrowRight') { handleX = clamp(handleX + step, 0, 1); m = true; }
+    if (e.key === 'ArrowUp') { handleY = clamp(handleY - step, 0, 1); m = true; }
+    if (e.key === 'ArrowDown') { handleY = clamp(handleY + step, 0, 1); m = true; }
+    if (m) {
+      e.preventDefault(); stopAnimation();
+      sliderPos = (sliderMode === 'diagonal-slash') ? (handleX + handleY) / 2 : (handleY - handleX + 1) / 2;
+      applySplit();
+    }
+  }
+});
+
+/* ============ Zoom & Pan (from compare-image) ============ */
+/**
+ * Apply the current zoom + pan to every image element in all view modes.
+ * The transform is `translate(-50%,-50%)` to center the image, then
+ * `scale(zoom)` and finally `translate(panX,panY)` in pre-zoom px. Calling
+ * updateZoomUI() keeps the preset buttons + numeric input in sync.
+ * @credit transform approach from compare-image (tchung1970, MIT)
+ */
+function updateTransform() {
+  [imgA, imgB, imgA2, imgB2, resultImage].forEach(img => {
+    img.style.transform = `translate(-50%, -50%) scale(${zoom}) translate(${panX}px, ${panY}px)`;
+  });
+  updateZoomUI();
+}
+/** Reflect zoom state in the UI: highlight the active preset and, unless the
+ *  user is actively typing in the custom input, refresh its displayed value. */
+function updateZoomUI() {
+  zoomPresets.forEach(b => b.classList.toggle('active', Math.abs(parseFloat(b.dataset.zoom) - zoom) < 1e-9));
+  if (document.activeElement !== zoomInput) zoomInput.value = Math.round(zoom * 100);
+}
+/** Preset buttons (100%..500%): set zoom, and reset pan only when returning to 1:1. */
+zoomPresets.forEach(btn => btn.addEventListener('click', () => {
+  zoom = parseFloat(btn.dataset.zoom); if (zoom === 1) { panX = 0; panY = 0; } updateTransform();
+}));
+/**
+ * Parse the custom zoom input (a percentage) and apply it. Invalid input falls
+ * back to refreshing the displayed value.
+ */
+function applyZoomInput() {
+  const v = parseFloat(zoomInput.value);
+  if (!isNaN(v) && v > 0) { zoom = Math.max(v / 100, 0.01); updateTransform(); } else updateZoomUI();
+}
+/** Enter commits the typed zoom; Escape discards and restores the displayed value. */
+zoomInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); applyZoomInput(); zoomInput.blur(); }
+  else if (e.key === 'Escape') { e.preventDefault(); updateZoomUI(); zoomInput.blur(); }
+});
+zoomInput.addEventListener('blur', applyZoomInput);
+/** Reset button: clear zoom/pan and recenter the slider to 50%. */
+resetBtn.addEventListener('click', () => { zoom = 1; panX = 0; panY = 0; sliderPos = 0.5; updateTransform(); setSplit(50); });
+
+/* ============ Side by side ============ */
+/**
+ * Size the two side-by-side images to the same display height (so they align
+ * visually) while each preserving its own aspect ratio and fitting within its
+ * panel. Uses the smaller of the two natural fit-heights as the shared target.
+ * @credit side-by-side layout from compare-image (tchung1970, MIT)
+ */
+function normalizeSideBySide() {
+  if (!imgA2.naturalWidth || !imgB2.naturalWidth) return;
+  const panel = sideBySide.querySelector('.panel');
+  const pw = panel.clientWidth, ph = panel.clientHeight;
+  const rA = imgA2.naturalWidth / imgA2.naturalHeight;
+  const rB = imgB2.naturalWidth / imgB2.naturalHeight;
+  const hA = Math.min(ph, pw / rA), hB = Math.min(ph, pw / rB);
+  const targetH = Math.min(hA, hB);
+  [imgA2, imgB2].forEach(img => {
+    const r = img.naturalWidth / img.naturalHeight;
+    img.style.width = (targetH * r) + 'px';
+    img.style.height = targetH + 'px';
+  });
+  updateTransform();
+}
+
+/* ============ Fullscreen ============ */
+/** Toggle fullscreen on the split container (so the compare view fills the screen). */
+function toggleFullscreen() {
+  if (document.fullscreenElement === compareView) document.exitFullscreen();
+  else compareView.requestFullscreen().catch(() => {});
+}
+fullscreenBtn.addEventListener('click', toggleFullscreen);
+fullscreenBtn2.addEventListener('click', toggleFullscreen);
+
+/* ============ Autoplay animation (from image-swipe-compare) ============ */
+/**
+ * Update the "Speed Ns" label as the user drags the speed slider.
+ * @credit autoplay sweep from image-swipe-compare (hhkaos, MIT)
+ */
+function updateSpeedLabel() { speedValue.textContent = `${Number(speedInput.value).toFixed(1)}s`; }
+speedInput.addEventListener('input', updateSpeedLabel);
+/**
+ * Per-frame callback for the autoplay sweep. Drives a sine wave between 0% and
+ * 100% so the slider glides back and forth. Diagonal modes sweep the free 2D
+ * handle along the diagonal; axis modes sweep the scalar split.
+ * @param {number} ts - requestAnimationFrame timestamp (ms)
+ */
+function animationStep(ts) {
+  if (animationFrameId === null) return;
+  const omega = Math.PI / Number(speedInput.value);
+  const elapsed = (ts - animationStartTime) / 1000;
+  const s = 50 + 50 * Math.sin(omega * elapsed + animationPhase);
+  if (sliderMode === 'diagonal-slash') { handleX = s / 100; handleY = s / 100; sliderPos = s / 100; applySplit(); }
+  else if (sliderMode === 'diagonal-backslash') { handleX = 1 - s / 100; handleY = s / 100; sliderPos = s / 100; applySplit(); }
+  else setSplit(s);
+  animationFrameId = requestAnimationFrame(animationStep);
+}
+/**
+ * Stop the autoplay sweep (if running) and reset the button label to "Play".
+ */
+function stopAnimation() {
+  if (animationFrameId !== null) { cancelAnimationFrame(animationFrameId); animationFrameId = null; animateToggleBtn.textContent = 'Play'; }
+}
+/**
+ * Start the autoplay sweep. Captures the current slider position as the sine
+ * phase (via asin) so the animation resumes smoothly rather than snapping.
+ */
+function startAnimation() {
+  if (animationFrameId !== null) return;
+  const cur = Number(slider.getAttribute('aria-valuenow'));
+  animationPhase = Math.asin(clamp((cur - 50) / 50, -1, 1));
+  animationStartTime = performance.now();
+  animationFrameId = requestAnimationFrame(animationStep);
+  animateToggleBtn.textContent = 'Stop';
+}
+animateToggleBtn.addEventListener('click', () => { animationFrameId === null ? startAnimation() : stopAnimation(); });
+
+/* ============ Capture PNG (from compare-image, generalized) ============ */
+/**
+ * Draw an image into a destination rect using "contain" (letterbox) rules,
+ * preserving aspect ratio and centering within (x, y, w, h).
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {HTMLImageElement} img
+ * @param {number} x - destination left
+ * @param {number} y - destination top
+ * @param {number} w - destination width
+ * @param {number} h - destination height
+ * @credit capture approach from compare-image (tchung1970, MIT)
+ */
+function drawContain(ctx, img, x, y, w, h) {
+  if (!img.naturalWidth) return;
+  const r = img.naturalWidth / img.naturalHeight;
+  let dw = w, dh = w / r;
+  if (dh > h) { dh = h; dw = h * r; }
+  ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+}
+/**
+ * Render the current split or side-by-side view to an offscreen canvas (scaled
+ * by devicePixelRatio for crisp output) and trigger a PNG download. For split
+ * mode it draws image B full, then clips to the active split polygon and draws
+ * image A on top — exactly mirroring what's on screen including diagonal splits.
+ */
+function captureComparison() {
+  if (mode !== 'split' && mode !== 'side') return;
+  const area = mode === 'split' ? compareView : sideBySide;
+  const arect = area.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(arect.width * dpr);
+  canvas.height = Math.round(arect.height * dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.scale(dpr, dpr);
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--viewport-bg') || '#0f1119';
+  ctx.fillRect(0, 0, arect.width, arect.height);
+  if (mode === 'split') {
+    drawContain(ctx, imgB, 0, 0, arect.width, arect.height);
+    const pts = getLeftClipPoints();
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x * arect.width, pts[0].y * arect.height);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * arect.width, pts[i].y * arect.height);
+    ctx.closePath(); ctx.clip();
+    drawContain(ctx, imgA, 0, 0, arect.width, arect.height);
+    ctx.restore();
+  } else {
+    const panels = sideBySide.querySelectorAll('.panel');
+    [imgA2, imgB2].forEach((img, i) => {
+      const pr = panels[i].getBoundingClientRect();
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(pr.left - arect.left, pr.top - arect.top, pr.width, pr.height);
+      ctx.clip();
+      drawContain(ctx, img, pr.left - arect.left, pr.top - arect.top, pr.width, pr.height);
+      ctx.restore();
+    });
+  }
+  canvas.toBlob(blob => { if (blob) downloadBlob(blob, `compare-${mode}.png`); }, 'image/png');
+}
+captureBtn.addEventListener('click', captureComparison);
+/** Trigger a browser download for a Blob, then revoke its temporary URL. */
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url; link.download = filename;
+  document.body.appendChild(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/* ============ Combine / Diff (from beforeafter) ============ */
+/**
+ * Resolve once an image element has finished loading (has natural dimensions).
+ * @param {HTMLImageElement} img
+ * @returns {Promise<void>}
+ * @credit combine/diff rendering from beforeafter (Yani Iliev, MIT)
+ */
+function ensureLoaded(img) {
+  return new Promise(res => { if (img.complete && img.naturalWidth) res(); else img.onload = res; });
+}
+/**
+ * Push a rendered canvas into the result <img> and (re)bind the Download button
+ * to save it in the chosen format/quality.
+ * @param {HTMLCanvasElement} canvas
+ * @param {string} format - 'png' | 'jpeg' | 'webp'
+ * @param {number} quality - 0..100 (used for jpeg/webp)
+ */
+function showResult(canvas, format, quality) {
+  const q = format === 'jpeg' ? quality / 100 : undefined;
+  resultImage.src = canvas.toDataURL(`image/${format}`, q);
+  resultDownload.onclick = () => {
+    const link = document.createElement('a');
+    link.download = `${mode === 'diff' ? 'image-diff' : 'combined-image'}.${format}`;
+    link.href = resultImage.src; link.click();
+  };
+}
+/**
+ * Render image A and B into a single combined canvas placed side-by-side
+ * (horizontal layout when BOTH are portrait) or stacked (otherwise), with an
+ * optional gap, background color, and "Before"/"After" labels. Result is shown
+ * via showResult().
+ */
+function renderCombine() {
+  Promise.all([ensureLoaded(imgA), ensureLoaded(imgB)]).then(() => {
+    const aA = imgA.naturalWidth / imgA.naturalHeight, aB = imgB.naturalWidth / imgB.naturalHeight;
+    const horizontal = aA < 1 && aB < 1;
+    const gap = parseInt(gapControl.value);
+    const c = document.createElement('canvas');
+    if (horizontal) { c.width = imgA.naturalWidth + imgB.naturalWidth + gap; c.height = Math.max(imgA.naturalHeight, imgB.naturalHeight); }
+    else { c.width = Math.max(imgA.naturalWidth, imgB.naturalWidth); c.height = imgA.naturalHeight + imgB.naturalHeight + gap; }
+    const ctx = c.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = bgColor.value; ctx.fillRect(0, 0, c.width, c.height);
+    const fs = parseInt(fontSize.value), lp = Math.max(fs * 1.2, 30);
+    ctx.fillStyle = labelColor.value; ctx.font = `${fs}px Arial`; ctx.textAlign = 'center';
+    if (horizontal) {
+      ctx.drawImage(imgA, 0, 0, imgA.naturalWidth, imgA.naturalHeight);
+      ctx.drawImage(imgB, imgA.naturalWidth + gap, 0, imgB.naturalWidth, imgB.naturalHeight);
+      ctx.fillText('Before', imgA.naturalWidth / 2, lp);
+      ctx.fillText('After', imgA.naturalWidth + gap + imgB.naturalWidth / 2, lp);
+    } else {
+      ctx.drawImage(imgA, 0, 0, imgA.naturalWidth, imgA.naturalHeight);
+      ctx.drawImage(imgB, 0, imgA.naturalHeight + gap, imgB.naturalWidth, imgB.naturalHeight);
+      ctx.fillText('Before', c.width / 2, lp);
+      ctx.fillText('After', c.width / 2, imgA.naturalHeight + gap + lp);
+    }
+    showResult(c, formatSelect.value, parseInt(qualityControl.value));
+  });
+}
+/**
+ * Compute a per-pixel difference between image A and B. Pixels that differ in
+ * any channel (including alpha) are highlighted red with 50% alpha; identical
+ * pixels pass through unchanged from image B. The union canvas is centered and
+ * labeled. Result is shown via showResult().
+ */
+function renderDiff() {
+  Promise.all([ensureLoaded(imgA), ensureLoaded(imgB)]).then(() => {
+    const w = Math.max(imgA.naturalWidth, imgB.naturalWidth);
+    const h = Math.max(imgA.naturalHeight, imgB.naturalHeight);
+    const bc = document.createElement('canvas'), ac = document.createElement('canvas'), dc = document.createElement('canvas');
+    [bc, ac, dc].forEach(cv => { cv.width = w; cv.height = h; });
+    const bctx = bc.getContext('2d'), actx = ac.getContext('2d'), dctx = dc.getContext('2d');
+    [bctx, actx, dctx].forEach(c => { c.imageSmoothingEnabled = false; c.fillStyle = bgColor.value; c.fillRect(0, 0, w, h); });
+    bctx.drawImage(imgA, (w - imgA.naturalWidth) / 2, (h - imgA.naturalHeight) / 2);
+    actx.drawImage(imgB, (w - imgB.naturalWidth) / 2, (h - imgB.naturalHeight) / 2);
+    const bd = bctx.getImageData(0, 0, w, h).data, ad = actx.getImageData(0, 0, w, h).data;
+    const dd = dctx.getImageData(0, 0, w, h); const diff = dd.data;
+    for (let i = 0; i < bd.length; i += 4) {
+      // Differ in R, G, B or A -> mark red @ 50% alpha; else keep pixel from B.
+      if (bd[i] !== ad[i] || bd[i + 1] !== ad[i + 1] || bd[i + 2] !== ad[i + 2] || bd[i + 3] !== ad[i + 3]) {
+        diff[i] = 255; diff[i + 1] = 0; diff[i + 2] = 0; diff[i + 3] = 128;
+      } else { diff[i] = ad[i]; diff[i + 1] = ad[i + 1]; diff[i + 2] = ad[i + 2]; diff[i + 3] = ad[i + 3]; }
+    }
+    dctx.putImageData(dd, 0, 0);
+    const fs = parseInt(fontSize.value), lp = Math.max(fs * 1.2, 30);
+    dctx.fillStyle = labelColor.value; dctx.font = `${fs}px Arial`; dctx.textAlign = 'center';
+    dctx.fillText('Differences highlighted in red', w / 2, lp);
+    showResult(dc, formatSelect.value, parseInt(qualityControl.value));
+  });
+}
+/** Re-render the combine/diff result for the active combo mode (called on any
+ *  control change: gap, font, quality, colors, format). */
+function reRenderCombo() { if (mode === 'combine') renderCombine(); else if (mode === 'diff') renderDiff(); }
+// Live re-render of combine/diff whenever any control changes. Each listener
+// also updates its little value readout (e.g. "12px", "92%") in the UI.
+gapControl.addEventListener('input', () => { gapValue.textContent = gapControl.value + 'px'; reRenderCombo(); });
+fontSize.addEventListener('input', () => { fontValue.textContent = fontSize.value + 'px'; reRenderCombo(); });
+qualityControl.addEventListener('input', () => { qualityValue.textContent = qualityControl.value + '%'; reRenderCombo(); });
+bgColor.addEventListener('input', reRenderCombo);
+labelColor.addEventListener('input', reRenderCombo);
+formatSelect.addEventListener('change', reRenderCombo);
+
+/* ============ Back to upload ============ */
+/**
+ * Return to the upload screen: stop any animation, clear all image sources,
+ * hide every view region (via hideAllViews, which also clears the divider/slider
+ * leak), hide the combine controls, restore the upload screen, and reset the
+ * view state back to defaults.
+ */
+backBtn.addEventListener('click', () => {
+  stopAnimation();
+  imgA.src = ''; imgB.src = ''; imgA2.src = ''; imgB2.src = '';
+  hideAllViews();
+  combineControls.style.display = 'none';
+  uploadScreen.style.display = 'flex';
+  header.style.display = 'none'; infoBar.style.display = 'none';
+  zoom = 1; panX = 0; panY = 0; sliderPos = 0.5;
+  checkReady();
+});
+
+/* ============ Resize ============ */
+/**
+ * On viewport resize, recompute the split clip (so the divider stays aligned to
+ * the new aspect ratio) or re-fit the side-by-side images to their panels.
+ */
+window.addEventListener('resize', () => { if (mode === 'split') setSplit(sliderPos * 100); else if (mode === 'side') normalizeSideBySide(); });
+
+/* ============ Init labels ============ */
+/**
+ * One-time startup: populate the speed/gap/font/quality readouts and do an
+ * initial setSplit(50) so the divider + clip are positioned before any image
+ * is loaded.
+ */
+updateSpeedLabel();
+gapValue.textContent = gapControl.value + 'px';
+fontValue.textContent = fontSize.value + 'px';
+qualityValue.textContent = qualityControl.value + '%';
+setSplit(50);
+</script>
+</body>
+</html>

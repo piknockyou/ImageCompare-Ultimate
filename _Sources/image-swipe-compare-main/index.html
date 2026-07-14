@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Image Swipe Compare</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <h1>Image Swipe Compare</h1>
+
+      <section class="instructions">
+        <p>Drag and drop one image on each side of the comparison area, or drop two images at once to set both. Your images stay on your device and are never uploaded anywhere—feel free to verify it in the source code on <a href="https://github.com/hhkaos/image-swipe-compare" target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
+      </section>
+
+      <section class="mode-picker" aria-label="Slider mode">
+        <span class="mode-label">Slider:</span>
+        <label><input type="radio" name="slider-mode" value="vertical" checked /> Vertical |</label>
+        <label><input type="radio" name="slider-mode" value="diagonal-slash" /> Diagonal /</label>
+        <label><input type="radio" name="slider-mode" value="diagonal-backslash" /> Diagonal \</label>
+      </section>
+
+      <section class="compare-wrapper">
+        <div class="compare" id="compare">
+          <button class="fullscreen-btn" id="fullscreen-btn" type="button">Full Screen</button>
+          <img id="right-image" alt="Right image" />
+
+          <div class="top-layer" id="left-layer">
+            <img id="left-image" alt="Left image" />
+          </div>
+
+          <div class="slider" id="slider" aria-label="Swipe slider" role="slider" tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
+            <div class="slider-line"></div>
+            <div class="slider-handle">⇆</div>
+          </div>
+        </div>
+
+        <div class="animation-controls" aria-label="Animation and export controls">
+          <div class="control-group">
+            <span class="group-title">Preview</span>
+            <button id="animate-toggle-btn" type="button">Play Animation</button>
+            <label for="speed-input">
+              <span>Speed</span>
+              <input id="speed-input" type="range" min="0.5" max="8" step="0.5" value="2.5" />
+              <span id="speed-value">2.5s</span>
+            </label>
+            <label for="zoom-input">
+              <span>Zoom</span>
+              <input id="zoom-input" type="range" min="1" max="4" step="0.1" value="1" />
+              <span id="zoom-value">1.0x</span>
+            </label>
+            <label for="pan-x-input">
+              <span>Horizontal</span>
+              <input id="pan-x-input" type="range" min="-2" max="2" step="0.1" value="0" />
+              <span id="pan-x-value">Center</span>
+            </label>
+            <label for="pan-y-input">
+              <span>Vertical</span>
+              <input id="pan-y-input" type="range" min="-2" max="2" step="0.1" value="0" />
+              <span id="pan-y-value">Center</span>
+            </label>
+          </div>
+
+          <div class="control-group">
+            <span class="group-title">Export</span>
+            <label for="export-format">
+              <span>Format</span>
+              <select id="export-format">
+                <option value="gif">Animated GIF</option>
+                <option value="webp">Animated WEBP</option>
+                <option value="mp4">MP4</option>
+              </select>
+            </label>
+            <label for="export-quality">
+              <span>Quality</span>
+              <select id="export-quality">
+                <option value="low">Low</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High</option>
+              </select>
+            </label>
+            <button id="record-btn" type="button">Record 1 Cycle</button>
+          </div>
+        </div>
+
+        <span id="record-status" aria-live="polite"></span>
+
+        <div class="record-progress-wrap is-hidden">
+          <progress id="record-progress" max="100" value="0"></progress>
+          <span id="record-progress-text">0%</span>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <a href="https://links.rauljimenez.info/" target="_blank" rel="noopener noreferrer">Contact</a>
+      <span aria-hidden="true">·</span>
+      <a href="https://github.com/hhkaos/image-swipe-compare/issues" target="_blank" rel="noopener noreferrer">Report a bug</a>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>
