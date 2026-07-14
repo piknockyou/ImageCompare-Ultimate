@@ -8,6 +8,8 @@ Drop two images (or paste from clipboard / click to browse), then compare them i
 five different view modes with cursor-anchored zoom, drag-to-pan, and a PNG
 capture export.
 
+> ![tool teaser](screenshot.png) *← Add a 1200×750 preview screenshot here*
+
 ---
 
 ## Features
@@ -63,11 +65,11 @@ capture export.
 This tool is a clean-room **merge of three MIT-licensed projects**, retaining
 their respective permissions:
 
-| Project              | Author        | License | Features contributed                                  |
-| -------------------- | ------------- | ------- | ---------------------------------------------------- |
-| `beforeafter`        | Yani Iliev    | MIT     | Static Combine, Pixel Diff, clipboard paste          |
-| `compare-image`      | tchung1970    | MIT     | Split / side-by-side slider, zoom/pan, PNG capture, info bar |
-| `image-swipe-compare`| hhkaos        | MIT     | Diagonal slider modes, keyboard nav, fullscreen, autoplay |
+| Project | Author | License | Repo | Features |
+| ------- | ------ | ------- | ---- | -------- |
+| [`beforeafter`](https://github.com/yani-/beforeafter) | [Yani Iliev](https://github.com/yani-) | MIT | `yani-/beforeafter` | Static Combine, Pixel Diff, clipboard paste |
+| [`compare-image`](https://github.com/tchung1970/compare-image) | [tchung1970](https://github.com/tchung1970) | MIT | `tchung1970/compare-image` | Split / side-by-side slider, zoom/pan, PNG capture, info bar |
+| [`image-swipe-compare`](https://github.com/hhkaos/image-swipe-compare) | [hhkaos](https://github.com/hhkaos) | MIT | `hhkaos/image-swipe-compare` | Diagonal slider modes, keyboard nav, fullscreen, autoplay |
 
 The merged deliverable (`ImageCompare-Ultimate.html`) is released under the
 **MIT License** — see [`LICENSE`](./LICENSE). The original `_Sources/` folder
