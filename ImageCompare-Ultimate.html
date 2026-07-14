@@ -1368,8 +1368,6 @@ function captureComparison() {
 
   canvas.toBlob(blob => { if (blob) downloadBlob(blob, `compare-${mode}.png`); }, 'image/png');
 }
-  canvas.toBlob(blob => { if (blob) downloadBlob(blob, `compare-${mode}.png`); }, 'image/png');
-}
 captureBtn.addEventListener('click', captureComparison);
 /** Trigger a browser download for a Blob, then revoke its temporary URL. */
 function downloadBlob(blob, filename) {
