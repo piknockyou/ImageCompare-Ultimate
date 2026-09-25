@@ -1386,28 +1386,26 @@ function captureComparison() {
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = false;
   ctx.scale(dpr, dpr);
-  ctx.translate(-ux, -uy);
 
   if (mode === 'split') {
-    const bB = boxes.find(b => b.im === imgB) || boxes[0];
     const rpts = getRightClipPoints();
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(rpts[0].x * arect.width, rpts[0].y * arect.height);
-    for (let i = 1; i < rpts.length; i++) ctx.lineTo(rpts[i].x * arect.width, rpts[i].y * arect.height);
+    ctx.moveTo(rpts[0].x * ubW, rpts[0].y * ubH);
+    for (let i = 1; i < rpts.length; i++) ctx.lineTo(rpts[i].x * ubW, rpts[i].y * ubH);
     ctx.closePath(); ctx.clip();
-    drawContain(ctx, bB.im, bB.x, bB.y, bB.w, bB.h);
+    drawContain(ctx, imgB, 0, 0, ubW, ubH);
     ctx.restore();
-    const bA = boxes.find(b => b.im === imgA) || boxes[boxes.length - 1];
     const pts = getLeftClipPoints();
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(pts[0].x * arect.width, pts[0].y * arect.height);
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * arect.width, pts[i].y * arect.height);
+    ctx.moveTo(pts[0].x * ubW, pts[0].y * ubH);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * ubW, pts[i].y * ubH);
     ctx.closePath(); ctx.clip();
-    drawContain(ctx, bA.im, bA.x, bA.y, bA.w, bA.h);
+    drawContain(ctx, imgA, 0, 0, ubW, ubH);
     ctx.restore();
   } else {
+    ctx.translate(-ux, -uy);
     for (const b of boxes) drawContain(ctx, b.im, b.x, b.y, b.w, b.h);
   }
 
