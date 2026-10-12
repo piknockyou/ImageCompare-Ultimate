@@ -1,0 +1,5 @@
+# binaries and demo images: on disk, never versioned
+*.png
+*.jpg
+*.jpeg
+*.ico
