@@ -35,6 +35,21 @@ capture export.
 - **Dark / light theme** — toggle in the header, persisted to `localStorage`
   under the key `ictheme`.
 - **Clipboard paste** — paste an image with Ctrl/Cmd+V onto a box or the page.
+- **Two-file drop anywhere** — dropping two images on one tile, the background,
+  or the file picker fills A+B; location never matters.
+- **Auto-start** — the moment both slots hold decodable images, compare opens
+  directly (together or one after the other).
+- **Stage drops** — while comparing, drop two images to replace both, or one
+  image to replace the left (A) / right (B) slot by drop position.
+- **Capture matches viewport** — PNG export fills letterbox zones with the
+  viewport background and maps the split clip exactly (diagonal-safe).
+- **TIFF + broad formats** — `.tif/.tiff` decode in-page via vendored UTIF.js
+  (MIT, Photopea, offline single-file); other extensions (HEIC/HEIF, AVIF, BMP,
+  ICO, SVG, WebP, RAW) accepted when the browser can render them, with a clear
+  toast otherwise.
+- **E2E verified** — `tests/e2e.cjs` (Playwright + system Chrome, runtime-made
+  fixtures, nothing committed) checks drop routing, auto-start, slot swaps, and
+  pixel-compares every capture mode against the viewport.
 
 ---
 

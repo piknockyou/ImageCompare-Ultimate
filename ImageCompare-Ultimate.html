@@ -260,14 +260,14 @@
         <span class="label">Drop image here or click</span>
         <span class="sublabel">Image A (Left / Before)</span>
         <span class="filename" id="nameA"></span>
-        <input type="file" id="fileA" accept="image/*,.tif,.tiff,.heic,.heif,.avif,.bmp,.ico,.svg,.webp,.dng,.cr2,.nef,.arw">
+        <input type="file" id="fileA" accept="image/*,.tif,.tiff,.heic,.heif,.avif,.bmp,.ico,.svg,.webp,.dng,.cr2,.nef,.arw" multiple>
       </div>
       <div class="upload-box" id="uploadB" onclick="document.getElementById('fileB').click()" title="Click to browse, drop, or paste (Ctrl+V)">
         <span class="upload-icon">&#128247;</span>
         <span class="label">Drop image here or click</span>
         <span class="sublabel">Image B (Right / After)</span>
         <span class="filename" id="nameB"></span>
-        <input type="file" id="fileB" accept="image/*,.tif,.tiff,.heic,.heif,.avif,.bmp,.ico,.svg,.webp,.dng,.cr2,.nef,.arw">
+        <input type="file" id="fileB" accept="image/*,.tif,.tiff,.heic,.heif,.avif,.bmp,.ico,.svg,.webp,.dng,.cr2,.nef,.arw" multiple>
       </div>
     </div>
     <div class="btn-row">
@@ -2447,7 +2447,7 @@ async function handleFileA(file) {
   if (!await probeImage(r.url)) { showToast(`Browser cannot decode ${file.name}; convert to PNG/JPEG`, 'error'); return; }
   fileAObj = file; fileAUrl = r.url;
   nameA.textContent = file.name; uploadA.classList.add('has-file');
-  showThumbnail(uploadA, file, r.url); checkReady();
+  showThumbnail(uploadA, file, r.url); checkReady(); maybeShowImages();
 }
 /**
  * Assign a newly selected image to slot B (image B / Right / After).
@@ -2459,16 +2459,38 @@ async function handleFileB(file) {
   if (!await probeImage(r.url)) { showToast(`Browser cannot decode ${file.name}; convert to PNG/JPEG`, 'error'); return; }
   fileBObj = file; fileBUrl = r.url;
   nameB.textContent = file.name; uploadB.classList.add('has-file');
-  showThumbnail(uploadB, file, r.url); checkReady();
+  showThumbnail(uploadB, file, r.url); checkReady(); maybeShowImages();
 }
-fileA.addEventListener('change', () => handleFileA(fileA.files[0]));
-fileB.addEventListener('change', () => handleFileB(fileB.files[0]));
+fileA.addEventListener('change', () => distributeFiles([...fileA.files], handleFileA));
+fileB.addEventListener('change', () => distributeFiles([...fileB.files], handleFileB));
 
 /**
- * Wire drag-and-drop onto a single upload box.
- * The box itself handles its own drop; drop elsewhere on the upload screen
- * (handled separately below) is deliberately NOT stopped here so the screen's
- * catch-all drop handler can auto-distribute files to the empty slots.
+ * Route dropped/selected/pasted files to slots: two or more images always fill
+ * A+B in order (drop location never matters); a single image goes to `single`.
+ * @param {File[]} files - already filtered to images
+ * @param {(f:File)=>void} single - handler for the single-file case
+ */
+function distributeFiles(files, single) {
+  if (files.length >= 2) { handleFileA(files[0]); handleFileB(files[1]); return; }
+  if (files.length >= 1) single(files[0]);
+}
+
+/**
+ * React the moment both slots hold images: on the upload screen enter compare;
+ * while already comparing, swap in the new pixels (covers concurrent handler
+ * finishes where the first start saw a stale slot — the second finisher heals it).
+ */
+function maybeShowImages() {
+  if (!(fileAObj && fileBObj)) return;
+  if (uploadScreen.style.display !== 'none') startCompare();
+  else reloadCompare();
+}
+
+/**
+ * Wire drag-and-drop onto a single upload box. A two-file drop fills BOTH slots
+ * (same as dropping on the background), so aim never matters; a single file
+ * goes to this box. stopPropagation keeps the screen catch-all from double
+ * handling the same drop.
  * @param {HTMLElement} box     - the drop target box
  * @param {(file:File)=>void} handler - called with the dropped image File
  * @credit drag/drop wiring adapted from compare-image (tchung1970, MIT)
@@ -2478,16 +2500,16 @@ function setupDrop(box, handler) {
   box.addEventListener('dragleave', () => box.classList.remove('dragover'));
   box.addEventListener('drop', e => {
     e.preventDefault(); e.stopPropagation(); box.classList.remove('dragover');
-    const f = e.dataTransfer.files[0]; if (f) handler(f);
+    distributeFiles([...e.dataTransfer.files].filter(isImageFile), handler);
   });
 }
 setupDrop(uploadA, handleFileA);
 setupDrop(uploadB, handleFileB);
 
 /**
- * Drop anywhere on the upload screen (outside either box) -> auto-fill the
- * empty slots: first image -> A, second -> B. Lets the user drop two files at
- * once onto the page without aiming at a specific box.
+ * Drop on the upload background: two images fill A+B in order; a single image
+ * fills the first empty slot. (Drops landing directly on a box are handled by
+ * setupDrop with the same two-file rule, so aim never matters.)
  * @credit multi-file drop distribution adapted from compare-image (tchung1970, MIT)
  */
 uploadScreen.addEventListener('dragover', e => e.preventDefault());
@@ -2498,6 +2520,7 @@ uploadScreen.addEventListener('drop', e => {
   if (files.length >= 1) {
     if (!fileAObj) handleFileA(files[0]);
     else if (!fileBObj) handleFileB(files[0]);
+    else handleFileA(files[0]); // both filled: single drop overwrites A
   }
 });
 
@@ -2556,27 +2579,87 @@ uploadResetBtn.addEventListener('click', () => {
   checkReady();
 });
 
-/* ============ Start compare ============ */
+/* ============ Start / reload compare ============ */
+/**
+ * (Re)bind the workspace images to the current display URLs and run `cb` once
+ * both have finished loading (natural sizes known). Single place that owns the
+ * one-shot load listeners so fresh starts and mid-compare swaps stay in sync.
+ * The gate also counts images that are already showing the target URL (same-src
+ * re-entry, e.g. two rapid starts): without this the listener would starve
+ * because no new load event fires, leaving info tags and layouts stale forever.
+ * @param {() => void} cb - runs after imgA AND imgB both resolve
+ */
+function loadWorkspaceImages(cb) {
+  let loaded = 0;
+  const onLoad = () => { if (++loaded >= 2) cb(); };
+  imgA2.src = fileAUrl; imgB2.src = fileBUrl;
+  for (const [im, url] of [[imgA, fileAUrl], [imgB, fileBUrl]]) {
+    const done = () => { im.removeEventListener('load', done); im.removeEventListener('error', done); onLoad(); };
+    im.addEventListener('load', done);
+    im.addEventListener('error', done); // never hang the gate on a broken file
+    if (im.getAttribute('src') !== url) im.src = url;
+    else if (im.complete && im.naturalWidth) done(); // same-src re-entry: no new event
+  }
+}
 /** Launch the comparison workspace once both images are present.
- *  Sets the <img> sources, hides the upload screen, reveals the header/info
- *  bar, resets the view, then waits for both images to load before sizing the
- *  split/side-by-side layouts (we must know natural sizes first). */
+ *  Hides the upload screen, reveals the header/info bar, enters split mode,
+ *  then sizes the layouts once both images have loaded. */
 compareBtn.addEventListener('click', startCompare);
 function startCompare() {
-  const urlA = fileAUrl || URL.createObjectURL(fileAObj);
-  const urlB = fileBUrl || URL.createObjectURL(fileBObj);
-  fileAUrl = urlA; fileBUrl = urlB;
-  imgA.src = urlA; imgB.src = urlB; imgA2.src = urlA; imgB2.src = urlB;
+  if (!fileAObj || !fileBObj) return;
+  fileAUrl = fileAUrl || URL.createObjectURL(fileAObj);
+  fileBUrl = fileBUrl || URL.createObjectURL(fileBObj);
   uploadScreen.style.display = 'none';
   header.style.display = 'flex';
   infoBar.style.display = 'flex';
   zoom = 1; panX = 0; panY = 0; sliderPos = 0.5;
   setViewMode('split');
-  let loaded = 0;
-  const onLoad = () => { if (++loaded >= 2) { updateInfoTags(); setSplit(50); normalizeSplit(); normalizeSideBySide(); } };
-  imgA.addEventListener('load', onLoad, { once: true });
-  imgB.addEventListener('load', onLoad, { once: true });
+  loadWorkspaceImages(() => { updateInfoTags(); setSplit(50); normalizeSplit(); normalizeSideBySide(); });
 }
+/**
+ * Swap in newly dropped images while already comparing: keep the view mode and
+ * slider, reset zoom/pan (stale offsets are meaningless for new pixels), then
+ * re-render the mode once both images have loaded.
+ */
+function reloadCompare() {
+  if (!fileAObj || !fileBObj || uploadScreen.style.display !== 'none') return;
+  zoom = 1; panX = 0; panY = 0; updateTransform();
+  stopAnimation();
+  loadWorkspaceImages(() => {
+    updateInfoTags();
+    if (mode === 'split') { normalizeSplit(); setSplit(sliderPos * 100); }
+    else if (mode === 'side') normalizeSideBySide();
+    else if (mode === 'combine') renderCombine();
+    else if (mode === 'diff') renderDiff();
+    else if (mode === 'solo') soloShowBase();
+  });
+}
+/**
+ * Drops landing on the stage while comparing. Two images replace both slots;
+ * one image replaces the left (A) or right (B) slot by drop x-position.
+ */
+stage.addEventListener('dragover', e => e.preventDefault());
+stage.addEventListener('drop', async e => {
+  e.preventDefault(); e.stopPropagation();
+  const files = [...e.dataTransfer.files].filter(isImageFile);
+  if (!files.length) return;
+  // Slot handlers store + probe + re-render via maybeShowImages; no explicit
+  // reload needed (avoids a third render pass).
+  if (files.length >= 2) {
+    await Promise.all([handleFileA(files[0]), handleFileB(files[1])]);
+    showToast('Both images replaced');
+  } else {
+    const r = stage.getBoundingClientRect();
+    if (e.clientX < r.left + r.width / 2) { await handleFileA(files[0]); showToast('Image A replaced'); }
+    else { await handleFileB(files[0]); showToast('Image B replaced'); }
+  }
+});
+/**
+ * Safety net: a file drop that hits neither the upload screen nor the stage
+ * (e.g. the header) must never navigate the page away and lose state.
+ */
+document.addEventListener('dragover', e => { if (uploadScreen.style.display === 'none') e.preventDefault(); });
+document.addEventListener('drop', e => { if (uploadScreen.style.display === 'none') e.preventDefault(); });
 
 /**
  * Populate the two info-bar tags with each file's name, extension and pixel
@@ -3235,11 +3318,13 @@ function imageContentBoxes(m, arect) {
 /**
  * Render the current split or side-by-side view to an offscreen canvas and
  * download it as PNG. The canvas is cropped to the UNION of the actual image
- * content boxes, so the surrounding letterbox / container area is NOT captured,
- * and the PNG background is left TRANSPARENT. Split mode draws image B (base)
- * then clips image A to the active slider polygon; side-by-side draws both images
- * at their true (fit) positions, preserving the gap between them.
- * Exports at fit scale — current zoom/pan are intentionally NOT reproduced.
+ * content boxes, so the surrounding container area is NOT captured. Split mode
+ * draws image B (base) then clips image A to the active slider polygon;
+ * side-by-side draws both images at their true (fit) positions, preserving the
+ * gap between them. Letterbox / gap zones are filled with the viewport
+ * background so the PNG matches what is on screen (never transparent wedges).
+ * Exports at fit scale — current zoom/pan are intentionally NOT reproduced;
+ * the capture is the zoomed-out bounding-box view.
  * @credit capture approach from compare-image (tchung1970, MIT)
  */
 function captureComparison() {
@@ -3265,22 +3350,29 @@ function captureComparison() {
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = false;
   ctx.scale(dpr, dpr);
+  // Viewport background fill so letterbox zones match the screen.
+  ctx.fillStyle = getComputedStyle(stage).backgroundColor;
+  ctx.fillRect(0, 0, ubW, ubH);
 
   if (mode === 'split') {
-    const rpts = getRightClipPoints();
+    // Clip polygons live in container-normalized space, but the canvas shows
+    // only the cropped content box: map container px -> canvas px by subtracting
+    // the content origin (ux, uy). Mapping straight onto (ubW, ubH) skewed
+    // diagonal captures whenever the content was letterboxed.
+    const toCanvas = p => [p.x * arect.width - ux, p.y * arect.height - uy];
+    const traceClip = pts => {
+      ctx.beginPath();
+      const [sx, sy] = toCanvas(pts[0]);
+      ctx.moveTo(sx, sy);
+      for (let i = 1; i < pts.length; i++) { const [qx, qy] = toCanvas(pts[i]); ctx.lineTo(qx, qy); }
+      ctx.closePath(); ctx.clip();
+    };
     ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(rpts[0].x * ubW, rpts[0].y * ubH);
-    for (let i = 1; i < rpts.length; i++) ctx.lineTo(rpts[i].x * ubW, rpts[i].y * ubH);
-    ctx.closePath(); ctx.clip();
+    traceClip(getRightClipPoints());
     drawContain(ctx, imgB, 0, 0, ubW, ubH);
     ctx.restore();
-    const pts = getLeftClipPoints();
     ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(pts[0].x * ubW, pts[0].y * ubH);
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * ubW, pts[i].y * ubH);
-    ctx.closePath(); ctx.clip();
+    traceClip(getLeftClipPoints());
     drawContain(ctx, imgA, 0, 0, ubW, ubH);
     ctx.restore();
   } else {
