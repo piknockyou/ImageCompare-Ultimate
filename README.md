@@ -41,8 +41,9 @@ capture export.
   directly (together or one after the other).
 - **Stage drops** — while comparing, drop two images to replace both, or one
   image to replace the left (A) / right (B) slot by drop position.
-- **Capture matches viewport** — PNG export fills letterbox zones with the
-  viewport background and maps the split clip exactly (diagonal-safe).
+- **Capture matches viewport** — fit-only bounding-box PNG (zoom/pan ignored,
+  never a larger made-up canvas); split line and division exactly as shown,
+  including diagonals; letterbox stays transparent, never invented.
 - **TIFF + broad formats** — `.tif/.tiff` decode in-page via vendored UTIF.js
   (MIT, Photopea, offline single-file); other extensions (HEIC/HEIF, AVIF, BMP,
   ICO, SVG, WebP, RAW) accepted when the browser can render them, with a clear

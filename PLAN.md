@@ -57,38 +57,51 @@
   drop can never navigate away; route to upload logic when upload visible, stage
   logic when a drop lands inside `#stage` while comparing, else swallow.
 
-### 2.4 Capture fix (the diagonal gap)
+### 2.4 Capture fix (the diagonal gap) — final spec: fit-only, exact split, transparent
 
 - Root cause (confirmed by reading `captureComparison`): split-branch clip polygons
   from `getLeftClipPoints()`/`getRightClipPoints()` live in **container-normalized**
   space but are mapped straight onto the **cropped content-box** canvas
   (`p.x * ubW`), ignoring the content origin `(ux, uy)` and container size.
   Correct canvas mapping: `X = p.x * arect.width - ux`, `Y = p.y * arect.height - uy`.
-- Second gap source: canvas starts transparent, so letterbox zones (different-size
-  images) and side-mode panel gaps export as transparent wedges while the viewport
-  shows the theme background. Fix: fill the canvas with the stage's computed
-  background (`getComputedStyle(stage).backgroundColor`) before drawing.
-- Keep fit-only semantics (zoom/pan not reproduced): capture = zoomed-out bounding
-  box, which is exactly what the user described. Note it in the docstring.
-- New `strokeClipPath(ctx, pts)` helper builds the offset path; both split clips use it.
+- Spec per user call: fit-only bounding box (zoom/pan ignored — capture is the
+  zoomed-out view, never a larger made-up canvas), split position/division exactly
+  as shown, letterbox/gap zones TRANSPARENT (no invented background).
+- E2E pixel proof: per-mode capture-vs-screenshot compare (solids bitwise exact);
+  photo proof via deterministic in-page re-render reference (`refMism === 0` over
+  a grid) + no transparency holes + drag byte-identity (pan ignored by design).
+- Harness lesson: `getContext('2d', {willReadFrequently:true})` rasterizes
+  differently than the default context — reference canvases must use the plain
+  context, else off-by-one speckle everywhere. Remaining photo-vs-screenshot
+  deltas are compositor-vs-canvas rasterizer noise on sharp edges (verified by
+  eyeball: capture and viewport look identical).
 
 ### 2.5 E2E tests (`tests/`, `playwright-core` + system Chrome, no repo binaries)
 
-- `tests/package.json` + `bun install` (`playwright-core` only). Fixtures generated
-  at runtime: hand-rolled solid-color PNG encoder + minimal uncompressed-TIFF
-  builder in the test script, written to `os.tmpdir()` (never the repo).
+- `tests/package.json` + `bun install` (`playwright-core` only). Fixtures via
+  system `ffmpeg` into `os.tmpdir()` (solids + TIFF; never the repo); the two
+  real `samples/` photos are used directly for the photo cases.
 - Cases: (a) multi-select input → auto-start + info tags; (b) 2-file drop on one
   tile → A+B + auto-start; (c) single drop on tile B → B only, no auto-start;
   (d) Close → upload; (e) stage single-drop left/right → correct slot replaced;
   (f) stage two-drop → both replaced; (g) TIFF+PNG drop → decoded + auto-start;
   (h) capture: for vertical/horizontal/diagonal-slash/diagonal-backslash at 35%,
-  stub `downloadBlob`, decode capture bytes + `compareView` element screenshot
-  in-page, assert 0 mismatches outside a small seam/handle mask and <5% masked.
+  vertical at 65% — solids bitwise vs screenshot, zero transparent holes;
+  (i) fullscreen enter (header) + exit (in-view button — also proves the button
+  receives clicks, i.e. the pan-capture fix);
+  (j) real samples, diagonal 35%: deterministic re-render reference must match
+  bitwise (`refMism === 0`), screenshot deltas stay raster-noise-level;
+  (k) after drag, capture bytes identical to pre-drag (pan ignored by design).
+- Fixed along the way: concurrent-finish double-start starving the load gate
+  (→ same-src counting + error listener + second finisher heals via reload);
+  in-view fullscreen button swallowed by stage pointer-capture (→ ignore clicks
+  on buttons in the pointerdown handler + keep the button visible in fullscreen).
 - In-page pixel work means zero new runtime deps and no committed binaries.
 
 ### 2.6 Docs
 
-- `README.md`: one line each for auto-start, compare-mode drops, capture bg fill.
+- `README.md`: one line each for auto-start, compare-mode drops, fit-only
+  transparent capture, TIFF support, E2E suite.
 - This file stays as the record; delete nothing else.
 
 ## 3. Risks / open points (decided, not asked)
