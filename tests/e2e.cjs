@@ -138,36 +138,43 @@ async function main() {
       window.__capDone = true;
     };
   });
-  // Deterministic proof for photos: re-render each image with the SAME ops and
-  // decide the expected side per grid point from the container-space split line
-  // (independent of the canvas-mapped clip polygon). Must match bitwise.
+  // Deterministic proof for photos: re-render each image with the SAME live-box
+  // ops as the implementation and decide the expected side per grid point from
+  // the container-space split line. Must match bitwise.
   async function photoRefCheck(pg, capBytes) {
     return pg.evaluate(async ({ cap }) => {
       const bmp = await createImageBitmap(new Blob([new Uint8Array(cap)]));
       const cw = bmp.width, ch = bmp.height;
       const area = document.getElementById('compareView');
       const arect = area.getBoundingClientRect();
-      const boxes = imageContentBoxes('split', arect);
+      const liveBox = im => {
+        const r = im.getBoundingClientRect();
+        return { im, x: r.left - arect.left, y: r.top - arect.top, w: r.width, h: r.height };
+      };
+      const boxes = [imgB, imgA].map(liveBox);
       let ux = Infinity, uy = Infinity, umx = -Infinity, umy = -Infinity;
       for (const b of boxes) {
         ux = Math.min(ux, b.x); uy = Math.min(uy, b.y);
         umx = Math.max(umx, b.x + b.w); umy = Math.max(umy, b.y + b.h);
       }
-      const ubW = umx - ux, ubH = umy - uy;
+      const cx0 = Math.max(ux, 0), cy0 = Math.max(uy, 0);
       const dpr = window.devicePixelRatio || 1;
       const cc = document.createElement('canvas'); cc.width = cw; cc.height = ch;
       const cx = cc.getContext('2d');
       cx.drawImage(bmp, 0, 0);
       const capD = cx.getImageData(0, 0, cw, ch).data;
-      const ref = im => {
+      const ref = box => {
         const c = document.createElement('canvas');
-        c.width = Math.max(1, Math.round(ubW * dpr)); c.height = Math.max(1, Math.round(ubH * dpr));
+        c.width = cw; c.height = ch;
         const g = c.getContext('2d');
-        g.imageSmoothingEnabled = false; g.scale(dpr, dpr);
-        drawContain(g, im, 0, 0, ubW, ubH);
+        g.imageSmoothingEnabled = false; g.scale(dpr, dpr); g.translate(-cx0, -cy0);
+        g.fillStyle = getComputedStyle(document.getElementById('stage')).backgroundColor;
+        g.fillRect(cx0, cy0, cw, ch);
+        drawContain(g, box.im, box.x, box.y, box.w, box.h);
         return g.getImageData(0, 0, c.width, c.height).data;
       };
-      const refA = ref(imgA), refB = ref(imgB);
+      const boxA = boxes.find(b => b.im === imgA), boxB = boxes.find(b => b.im === imgB);
+      const refA = ref(boxA), refB = ref(boxB);
       const opq = new Uint8Array(cw * ch);
       for (let k = 0; k < cw * ch; k++) if (capD[k * 4 + 3] !== 0) opq[k] = 1;
       const mixed = (i, j) => {
@@ -186,14 +193,14 @@ async function main() {
       let mism = 0, sampled = 0;
       const mismSpots = [];
       for (let j = 0; j < ch; j += 8) for (let i = 0; i < cw; i += 8) {
-        const nx = (i + ux) / vW, ny = (j + uy) / vH;
+        const nx = (i + cx0) / vW, ny = (j + cy0) / vH;
         let seam, aSide;
         if (sliderMode === 'vertical') { seam = Math.abs(nx - handleX) * vW; aSide = nx < handleX; }
         else if (sliderMode === 'horizontal') { seam = Math.abs(ny - handleY) * vH; aSide = ny < handleY; }
         else if (sliderMode === 'diagonal-slash') { seam = Math.abs(nx + ny - (handleX + handleY)) / norm; aSide = nx + ny < handleX + handleY; }
         else { seam = Math.abs(ny - nx - (handleY - handleX)) / norm; aSide = ny - nx < handleY - handleX; }
         if (seam < 6) continue;
-        if (Math.hypot(i + ux - hx, j + uy - hy) < 40) continue;
+        if (Math.hypot(i + cx0 - hx, j + cy0 - hy) < 40) continue;
         if (mixed(i, j)) continue;
         const k = (j * cw + i) * 4, r = aSide ? refA : refB;
         if (capD[k] !== r[k] || capD[k+1] !== r[k+1] || capD[k+2] !== r[k+2] || capD[k+3] !== r[k+3]) {
@@ -202,7 +209,7 @@ async function main() {
         }
         sampled++;
       }
-      return { mism, sampled, mismSpots, ux, uy, ubW, ubH, hx: handleX, hy: handleY, sm: sliderMode };
+      return { mism, sampled, mismSpots, sm: sliderMode };
     }, { cap: capBytes });
   }
   async function captureCaseOn(pg, sliderMode, pct) {
@@ -216,7 +223,7 @@ async function main() {
     await pg.waitForFunction(() => window.__capDone, null, { timeout: 10000 });
     const capBytes = await pg.evaluate(() => Array.from(window.__capBuf));
     const shot = await pg.locator('#compareView').screenshot();
-    const res = await page.evaluate(async ({ cap, shot }) => {
+    const res = await pg.evaluate(async ({ cap, shot }) => {
       const bmp = async a => createImageBitmap(new Blob([new Uint8Array(a)]));
       const [cb, sb] = await Promise.all([bmp(cap), bmp(shot)]);
       const cw = cb.width, ch = cb.height;
@@ -386,9 +393,9 @@ async function main() {
   await page3.mouse.up();
   await page3.waitForTimeout(300);
   const dragged = await captureCaseOn(page3, 'diagonal-slash', 35);
-  check('capture ignores pan (dragged bytes identical to rest)',
-    dragged.hash === rest.hash && dragged.dimMatch,
-    `rest=${rest.hash} dragged=${dragged.hash} size=${dragged.cw}x${dragged.ch}`);
+  check('capture reproduces pan (matches panned viewport, differs from rest)',
+    dragged.hash !== rest.hash && dragged.dimMatch && dragged.transparentWrong === 0 && dragged.bad / dragged.n < 0.10,
+    `rest=${rest.hash} dragged=${dragged.hash} badFrac=${(dragged.bad / dragged.n).toFixed(3)} tWrong=${dragged.transparentWrong} mean=${dragged.mean.toFixed(2)} size=${dragged.cw}x${dragged.ch}`);
 
   await browser.close();
   console.log(failures === 0 ? 'ALL E2E PASS' : `${failures} FAILURES`);

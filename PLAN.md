@@ -57,16 +57,20 @@
   drop can never navigate away; route to upload logic when upload visible, stage
   logic when a drop lands inside `#stage` while comparing, else swallow.
 
-### 2.4 Capture fix (the diagonal gap) — final spec: fit-only, exact split, transparent
+### 2.4 Capture fix (the diagonal gap) — final spec: WYSIWYG from live layout
 
 - Root cause (confirmed by reading `captureComparison`): split-branch clip polygons
   from `getLeftClipPoints()`/`getRightClipPoints()` live in **container-normalized**
-  space but are mapped straight onto the **cropped content-box** canvas
-  (`p.x * ubW`), ignoring the content origin `(ux, uy)` and container size.
-  Correct canvas mapping: `X = p.x * arect.width - ux`, `Y = p.y * arect.height - uy`.
-- Spec per user call: fit-only bounding box (zoom/pan ignored — capture is the
-  zoomed-out view, never a larger made-up canvas), split position/division exactly
-  as shown, letterbox/gap zones TRANSPARENT (no invented background).
+  space but are mapped straight onto the cropped content-box canvas.
+  User decision after seeing fit-only: capture reproduces the view exactly —
+  pan/zoom included — by reading live `getBoundingClientRect` boxes (which
+  already contain zoom/pan) instead of recomputed fit math, cropping to the
+  visible union ∩ container, tracing the clip unmapped in container coords.
+- Letterbox filled with viewport bg (matches screen); split line and division
+  exactly as shown, diagonals included.
+- E2E pixel proof: per-mode capture-vs-screenshot compare (solids bitwise exact);
+  photo proof via deterministic in-page re-render reference (`refMism === 0`);
+  drag changes the capture and it still matches the panned viewport.
 - E2E pixel proof: per-mode capture-vs-screenshot compare (solids bitwise exact);
   photo proof via deterministic in-page re-render reference (`refMism === 0` over
   a grid) + no transparency holes + drag byte-identity (pan ignored by design).
