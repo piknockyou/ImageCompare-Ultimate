@@ -57,6 +57,13 @@ four view modes with cursor-anchored zoom, drag-to-pan, and a PNG capture export
 
 ## Usage
 
+On Windows, you can also drop one or two images onto `drop_images_to_compare_in_browser.py` (or a
+shortcut to it). Python 3 and a `.py` file association that accepts dropped
+files are required. Two images open directly in compare mode; one fills the
+first slot. The launcher writes a temporary page containing the image data and
+removes it after two minutes; keep the tab open to continue using it. If the
+launcher is interrupted, the temporary copy may remain on disk.
+
 1. Open `index.html` in any modern browser. It is one file: copy it anywhere,
    or serve the repository root as a static site.
 2. On the upload screen, provide **Image A** and **Image B** via:

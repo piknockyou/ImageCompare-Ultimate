@@ -4,7 +4,7 @@ Working rules for this repository. It describes the constraints that are easy to
 
 ## What this repo is
 
-`index.html` is the entire product: one self-contained file with inline CSS and JavaScript, no build step, no runtime dependencies, no network calls. Everything else is development support.
+`index.html` is the self-contained browser tool, with inline CSS and JavaScript, no build step, no runtime dependencies, and no network calls. The optional Windows launcher is `drop_images_to_compare_in_browser.py`.
 
 ## Hard constraints
 
@@ -18,11 +18,14 @@ Working rules for this repository. It describes the constraints that are easy to
 | Path | Role |
 |---|---|
 | `index.html` | the tool |
+| `drop_images_to_compare_in_browser.py` | optional Windows drag-and-drop launcher |
 | `docs/` | supporting write-ups about the problem space |
 | `tests/` | end-to-end suite |
 | `scripts/` | maintenance tooling (Playwright resolver + screenshot generator) |
 | `assets/` | images referenced by the README |
 | `samples/` | local-only teaser pair for the screenshot script |
+
+Work history is recorded in `SESSION_LOG.md`.
 
 ## Docs
 
@@ -36,6 +39,7 @@ Run before every commit:
 
 ```bash
 bun run test           # = node tests/e2e.cjs, must print ALL E2E PASS
+python -m unittest discover -s tests -p test_launcher.py
 ```
 
 Prerequisites are machine-level, not project-level: Chrome, `ffmpeg` on PATH, and Playwright installed **globally** with `bun add -g playwright`. The repository carries no `node_modules`; `scripts/playwright.cjs` locates the global install (override with `PLAYWRIGHT_ROOT` when it lives somewhere unusual). Chrome is taken from the default Windows location; set `CHROME_PATH` to point elsewhere. Fixtures are generated at runtime into the system temp directory, never into the repo.
