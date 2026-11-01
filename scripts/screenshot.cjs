@@ -1,4 +1,4 @@
-// Regenerate the README teaser (screenshot.jpg) from the current build.
+// Regenerate the README teaser (assets/screenshot.jpg) from the current build.
 //
 // Usage:
 //   node scripts/screenshot.cjs                        # pair from samples/teaser/
@@ -21,20 +21,20 @@
 // The script prints the measured fill ratio, so the framing is a decision made
 // on numbers, not on how the result happens to look.
 //
-// Needs system Chrome and tests/node_modules/playwright-core (bun install in tests/).
-const { chromium } = require('../tests/node_modules/playwright-core');
+// Needs system Chrome and a global Playwright (`bun add -g playwright`); the repo has no node_modules.
+const { chromium } = require('./playwright.cjs');
 const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const PAGE_URL = 'file:///' + path.join(ROOT, 'ImageCompare-Ultimate.html').replace(/\\/g, '/');
-const CHROME = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+const PAGE_URL = 'file:///' + path.join(ROOT, 'index.html').replace(/\\/g, '/');
+const CHROME = process.env.CHROME_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 const TEASER_DIR = path.join(ROOT, 'samples', 'teaser');
 const IMG_RE = /\.(png|jpe?g|webp|gif|bmp|avif)$/i;
 
 function parseArgs(argv) {
   const opts = {
-    mode: 'split', out: path.join(ROOT, 'screenshot.jpg'),
+    mode: 'split', out: path.join(ROOT, 'assets', 'screenshot.jpg'),
     viewport: { w: 1000, h: 1000 }, square: 0, zoom: 1, fit: false, files: [],
   };
   for (let i = 0; i < argv.length; i++) {

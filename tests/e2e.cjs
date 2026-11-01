@@ -1,14 +1,14 @@
 // E2E for ImageCompare-Ultimate: drop routing, auto-start, stage swaps, capture==viewport.
 // Run: node tests/e2e.cjs   (needs system Chrome; fixtures go to os.tmpdir, never the repo)
 const { execFileSync } = require('child_process');
-const { chromium } = require('playwright-core');
+const { chromium } = require('../scripts/playwright.cjs');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const PAGE_URL = 'file:///' + path.join(ROOT, 'ImageCompare-Ultimate.html').replace(/\\/g, '/');
-const CHROME = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+const PAGE_URL = 'file:///' + path.join(ROOT, 'index.html').replace(/\\/g, '/');
+const CHROME = process.env.CHROME_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'icmp-'));
 
 let failures = 0;
@@ -28,11 +28,19 @@ async function main() {
   const green = path.join(TMP, 'green.png'); // 100x100
   const yel = path.join(TMP, 'yel.png');     // 96x64
   const tif = path.join(TMP, 'tif.tif');     // 64x48 TIFF
+  // Structured (non-solid) photos for the capture-vs-viewport case: a detailed
+  // pattern makes resampling visible, and the mismatched aspects (square vs
+  // portrait) exercise the shared fit box. Generated here so the suite runs on a
+  // fresh clone with nothing but ffmpeg.
+  const photoA = path.join(TMP, 'photo-a.png'); // 1254x1254
+  const photoB = path.join(TMP, 'photo-b.png'); // 1024x1536
   ffmpeg(['-f', 'lavfi', '-i', 'color=c=red:size=120x80', '-frames:v', '1', red]);
   ffmpeg(['-f', 'lavfi', '-i', 'color=c=blue:size=80x120', '-frames:v', '1', blue]);
   ffmpeg(['-f', 'lavfi', '-i', 'color=c=green:size=100x100', '-frames:v', '1', green]);
   ffmpeg(['-f', 'lavfi', '-i', 'color=c=yellow:size=96x64', '-frames:v', '1', yel]);
   ffmpeg(['-f', 'lavfi', '-i', 'color=c=0x00FFFF:size=64x48', '-frames:v', '1', tif]);
+  ffmpeg(['-f', 'lavfi', '-i', 'testsrc2=size=1254x1254', '-frames:v', '1', photoA]);
+  ffmpeg(['-f', 'lavfi', '-i', 'testsrc2=size=1024x1536', '-frames:v', '1', photoB]);
 
   const browser = await chromium.launch({
     executablePath: CHROME,
@@ -619,14 +627,11 @@ async function main() {
     check('no in-preview fullscreen button remains',
       await page.evaluate(() => !document.getElementById('fullscreenBtn2')));
   }
-  // ================= 9. real samples, diagonal + drag (pan) =================
+  // ================= 9. structured photos, diagonal + drag (pan) =================
   const page3 = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   page3.on('pageerror', e => console.log('PAGEERROR |', e.message));
   await page3.goto(PAGE_URL);
-  const sampDir = path.join(ROOT, 'samples');
-  const sampA = path.join(sampDir, 'ChatGPT Image Jul 14, 2026, 01_05_40 PM.png');
-  const sampB = path.join(sampDir, 'ChatGPT Image Jul 14, 2026, 12_55_14 PM.png');
-  await page3.setInputFiles('#fileA', [sampA, sampB]);
+  await page3.setInputFiles('#fileA', [photoA, photoB]);
   await page3.waitForFunction(() => document.getElementById('uploadScreen').style.display === 'none', null, { timeout: 20000 });
   await page3.evaluate(() => {
     window.__capDone = false; window.__capBuf = null;
@@ -637,7 +642,7 @@ async function main() {
   });
   const rest = await captureCaseOn(page3, 'diagonal-slash', 35);
   const ref = await photoRefCheck(page3, rest.capBytes);
-  check('capture==viewport samples diagonal@35% at rest',
+  check('capture==viewport photo diagonal@35% at rest',
     ref.mism === 0 && rest.transparentWrong === 0 && rest.dimMatch && rest.blockAvg < 5 && rest.blockMax < 60,
     `refMism=${ref.mism}/${ref.sampled} blockAvg=${rest.blockAvg.toFixed(2)} blockMax=${rest.blockMax.toFixed(1)} tWrong=${rest.transparentWrong} size=${rest.cw}x${rest.ch}` +
     (ref.mism ? ` spots=${JSON.stringify(ref.mismSpots)}` : ''));

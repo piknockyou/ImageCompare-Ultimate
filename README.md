@@ -7,7 +7,7 @@ Your images never leave your machine.
 Drop two images (or paste from clipboard / click to browse), then compare them in
 four view modes with cursor-anchored zoom, drag-to-pan, and a PNG capture export.
 
-![ImageCompare-Ultimate split view comparison](screenshot.jpg)
+![ImageCompare-Ultimate split view comparison](assets/screenshot.jpg)
 
 ---
 
@@ -58,8 +58,8 @@ four view modes with cursor-anchored zoom, drag-to-pan, and a PNG capture export
 
 ## Usage
 
-1. Open `ImageCompare-Ultimate.html` in any modern browser (or host it
-   statically anywhere — it's a single file).
+1. Open `index.html` in any modern browser. It is one file: copy it anywhere,
+   or serve the repository root as a static site.
 2. On the upload screen, provide **Image A** and **Image B** via:
    - drag & drop (drop two files at once, or one per box),
    - click a box to browse, or
@@ -92,7 +92,9 @@ their respective permissions:
 | [`compare-image`](https://github.com/tchung1970/compare-image) | [tchung1970](https://github.com/tchung1970) | MIT | `tchung1970/compare-image` | Split / side-by-side slider, zoom/pan, PNG capture, info bar |
 | [`image-swipe-compare`](https://github.com/hhkaos/image-swipe-compare) | [hhkaos](https://github.com/hhkaos) | MIT | `hhkaos/image-swipe-compare` | Diagonal slider modes, keyboard nav, fullscreen, autoplay |
 
-The merged deliverable (`ImageCompare-Ultimate.html`) is released under the
+The survey that shaped these choices — the other tools weighed, and why they were not merged — is in [`docs/image-comparison-concept-tool-landscape.md`](docs/image-comparison-concept-tool-landscape.md).
+
+The merged deliverable (`index.html`) is released under the
 **MIT License** — see [`LICENSE`](./LICENSE).
 
 ---
@@ -101,19 +103,23 @@ The merged deliverable (`ImageCompare-Ultimate.html`) is released under the
 
 ```
 compare_images_in_browser/
-├── ImageCompare-Ultimate.html   # the entire tool (single self-contained file)
-├── LICENSE                      # MIT + upstream attribution
+├── index.html                   # the entire tool (single self-contained file)
 ├── README.md                    # this file
-├── screenshot.jpg               # README teaser
-├── image-comparison-concept-tool-landscape.md   # survey of the tools this one merges
-├── tests/                       # E2E suite (Playwright + system Chrome)
-│   ├── e2e.cjs
-│   └── package.json
+├── LICENSE                      # MIT + upstream attribution
+├── AGENTS.md                    # repo rules for agents: gates, constraints, layout
+├── package.json                 # scripts only (test, screenshot); no dependencies
+├── .editorconfig
+├── .gitignore
+├── assets/
+│   └── screenshot.jpg           # README teaser
+├── docs/
+│   └── image-comparison-concept-tool-landscape.md   # survey of the tools this one merges
 ├── scripts/
-│   └── screenshot.cjs           # regenerates screenshot.jpg after a UI change
-└── samples/                     # not versioned
-    ├── teaser/                  # before.jpg / after.jpg that produce the README teaser
-    └── (photos)                 # two real photos used by the E2E photo cases
+│   ├── playwright.cjs           # finds the globally installed Playwright
+│   └── screenshot.cjs           # regenerates assets/screenshot.jpg after a UI change
+├── tests/
+│   └── e2e.cjs                  # E2E suite (Playwright + system Chrome)
+└── samples/                     # not versioned: teaser/before.jpg + after.jpg, photo fixtures
 ```
 
 ---
@@ -133,9 +139,10 @@ Why the tool behaves the way it does, where the reason is not obvious from the c
 
 ## Notes
 
-- No build step, no dependencies, no internet required.
+- No build step, no runtime dependencies, no internet required. The tool is `index.html` alone; everything else is development support.
+- The repository keeps no `node_modules`. Development borrows a globally installed Playwright (`bun add -g playwright`), located by `scripts/lib/playwright.cjs`; Chrome and `ffmpeg` are the other prerequisites.
 - The code is heavily commented with per-function docstrings and `@credit` tags
   mapping each piece back to its source project.
 - Verified by `tests/e2e.cjs`: 38 assertions covering drop routing, auto-start, slot swaps, capture-vs-viewport in every slider mode, joined export, and the gesture regressions.
-- `screenshot.jpg` is the README teaser: a square stage, so the README shows the tool at full height. Regenerate it after a UI change with `node scripts/screenshot.cjs --square 1200`, which reads `samples/teaser/` (or takes two image paths). The teaser pair is kept locally, not versioned; the screenshot is.
+- `assets/screenshot.jpg` is the README teaser: a square stage, so the README shows the tool at full height. Regenerate it after a UI change with `node scripts/screenshot.cjs --square 1200`, which reads `samples/teaser/` (or takes two image paths). The teaser pair is kept locally, not versioned; the screenshot is.
 
