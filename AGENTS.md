@@ -26,9 +26,9 @@ Working rules for this repository. It describes the constraints that are easy to
 
 ## Docs
 
-- One home per fact: the README tells the user what the tool does, this file tells agents the rules, `docs/` holds write-ups. Never restate a fact in two files — point at it instead. Short echoes are allowed only where the readers differ (README vs this file).
-- Cold-reader clean: every sentence must make sense to someone who never saw the work happen — no session memory, no change narration ("was moved", "used to be"), no announced omissions.
-- Counts, file trees, command lines and preset lists get re-verified against the implementation in the same change. Check doc changes against `@consolidate-patchwork` (one home, no duplication, frames match reality) and `@audit-cold-reader` (no echo of the making) before committing.
+- State each fact once: the README tells the user what the tool does, this file tells agents the rules, `docs/` holds write-ups. Never restate a fact in two files — point at it instead. Short echoes are allowed only where the readers differ (README vs this file).
+- Standalone sentences: every sentence must make sense to someone who never saw the work happen — no session memory, no change narration ("was moved", "used to be"), no announced omissions.
+- Counts, file trees, command lines and preset lists get re-verified against the implementation in the same change.
 
 ## Gates
 
@@ -59,3 +59,10 @@ It reads `samples/teaser/before.jpg` and `after.jpg`, prints the measured fill r
 ## Testing the UI by hand
 
 Open `index.html` directly from disk (`file://`) — that is the delivery path users take, so verify changes there rather than through a server.
+
+## Pending (tbc — kept for continuation)
+
+- Skill-split plan parked in `D:\Dropbox\Apps\__ToDo\skills-kb-restructure.md` (22 universal / 3 userscript-only / 7 mixed issues, seam rule, build-first-slim-second sequence); resume there, not here.
+- `samples/*.png` are still the original 2.7 MB files; only the teaser pair is compressed. Nothing references the PNGs — compress or drop them on next touch.
+- Tracked `assets/screenshot.jpg` vs tree no-binaries rule: exception not yet granted by owner. If refused, move the teaser to external hosting and un-track it.
+- Folder name stays `compare_images_in_browser` per tree snake_case rule unless owner overrides.
