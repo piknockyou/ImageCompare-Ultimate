@@ -98,14 +98,19 @@
   }
 
   /* ---------- Header ---------- */
-  .header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px;
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px;
     background: var(--panel); border-bottom: 1px solid var(--border); gap: 10px; flex-wrap: wrap; z-index: 10; }
-  .header-left { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-  .header-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .header-left { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  /* Never squeeze a control to make it fit: groups wrap instead, so labels and
+     sliders keep their natural size at narrow widths. */
+  .header-left > *, .header-right > * { flex: 0 0 auto; }
+  /* margin-left:auto keeps the actions flush right on their own row when the
+     two groups cannot share one line. */
+  .header-right { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-left: auto; }
   .logo { font-size: 17px; font-weight: 700; letter-spacing: 0.3px; color: var(--text); white-space: nowrap; }
 
   .seg { display: flex; background: var(--control-bg); border-radius: 10px; padding: 3px; gap: 2px; }
-  .seg button { background: none; border: none; color: var(--muted); padding: 6px 13px; cursor: pointer;
+  .seg button { background: none; border: none; color: var(--muted); padding: 6px 11px; cursor: pointer;
     font-size: 13px; font-weight: 600; border-radius: 8px; transition: all 0.15s; white-space: nowrap; }
   .seg button:hover { color: var(--text); }
   .seg button.active { background: var(--accent); color: var(--accent-text); }
@@ -118,7 +123,7 @@
 
   .zoom-controls { display: flex; align-items: center; gap: 2px; background: var(--control-bg);
     border-radius: 10px; padding: 3px; }
-  .zoom-preset { background: none; border: none; color: var(--muted); padding: 6px 9px; cursor: pointer;
+  .zoom-preset { background: none; border: none; color: var(--muted); padding: 6px 6px; cursor: pointer;
     font-size: 12px; font-weight: 600; border-radius: 8px; transition: all 0.15s; }
   .zoom-preset:hover { color: var(--text); }
   .zoom-preset.active { background: var(--accent); color: var(--accent-text); }
@@ -143,7 +148,9 @@
 
   .play-group { display: flex; align-items: center; gap: 8px; }
   .play-group label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
-  .play-group input[type=range] { width: 90px; }
+  .play-group input[type=range] { width: 74px; }
+  /* Slider-mode buttons are glyph-only to keep the toolbar on one row. */
+  .seg button.mode-btn { width: 34px; padding: 6px 0; font-size: 14px; }
 
   /* ---------- Info bar ---------- */
   .info-bar { display: flex; padding: 5px 16px; background: var(--panel); border-bottom: 1px solid var(--border); }
@@ -298,10 +305,10 @@
         <button id="soloBtn" title="Show one image; press and hold to reveal the other">Solo</button>
       </div>
       <div class="seg" id="sliderModeGroup">
-        <button data-mode="vertical" class="active" title="Split left / right">| Vertical</button>
-        <button data-mode="diagonal-slash" title="Split diagonally /">/ Diagonal</button>
-        <button data-mode="diagonal-backslash" title="Split diagonally \">\ Diagonal</button>
-        <button data-mode="horizontal" title="Split top / bottom">— Horizontal</button>
+        <button data-mode="vertical" class="active mode-btn" title="Vertical split (left / right)" aria-label="Vertical split">|</button>
+        <button data-mode="diagonal-slash" class="mode-btn" title="Diagonal split /" aria-label="Diagonal split forward slash">/</button>
+        <button data-mode="diagonal-backslash" class="mode-btn" title="Diagonal split (backslash)" aria-label="Diagonal split backslash">\</button>
+        <button data-mode="horizontal" class="mode-btn" title="Horizontal split (top / bottom)" aria-label="Horizontal split">—</button>
       </div>
       <div class="seg" id="joinedLayoutGroup" style="display:none;">
         <button data-layout="h" class="active" title="Joined side by side: A | B">A | B</button>
@@ -314,15 +321,13 @@
       <div class="zoom-controls" id="zoomGroup">
         <button class="zoom-preset" data-zoom="1" title="Zoom 100%">100%</button>
         <button class="zoom-preset" data-zoom="2" title="Zoom 200%">200%</button>
-        <button class="zoom-preset" data-zoom="3" title="Zoom 300%">300%</button>
-        <button class="zoom-preset" data-zoom="4" title="Zoom 400%">400%</button>
         <button class="zoom-preset" data-zoom="5" title="Zoom 500%">500%</button>
         <button class="zoom-preset" data-zoom="10" title="Zoom 1000%">1000%</button>
         <span class="zoom-custom"><input class="zoom-input" id="zoomInput" type="text" inputmode="numeric" title="Custom zoom percentage (type any value)">%</span>
       </div>
       <div class="play-group" id="playGroup">
         <button class="btn icon-btn" id="animateToggleBtn" data-state="play" title="Play auto-sweep" aria-label="Play auto-sweep">▶</button>
-        <label title="Sweep speed factor (1× = one pass per 2.5s)">Speed <input id="speedInput" type="range" min="0.25" max="4" step="0.25" value="1"><span id="speedValue">1.00×</span></label>
+        <label title="Sweep speed factor (1× = one pass per 2.5s)"><input id="speedInput" type="range" min="0.25" max="4" step="0.25" value="1" aria-label="Sweep speed factor"><span id="speedValue">1.00×</span></label>
       </div>
       <button class="btn icon-btn" id="fullscreenBtn" title="Toggle fullscreen" aria-label="Toggle fullscreen">⛶</button>
       <button class="btn icon-btn" id="themeBtn" title="Switch to light theme" aria-label="Switch to light theme"><span id="themeIcon" aria-hidden="true">☀️</span></button>

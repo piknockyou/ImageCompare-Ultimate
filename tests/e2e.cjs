@@ -247,6 +247,22 @@ async function main() {
       }
       const cx0 = Math.max(ux, 0), cy0 = Math.max(uy, 0);
       const cw2 = Math.min(umx, view.width) - cx0, ch2 = Math.min(umy, view.height) - cy0;
+      // Drawn-content edges (object-fit centres each image inside its box, so an
+      // edge can sit on a half pixel). CSS and canvas then disagree on that row or
+      // column by one pixel while the rendered result is identical to the eye.
+      const edges = refImgs.map(im => {
+        const r = im.getBoundingClientRect();
+        const cb = containBox(r.width, r.height, im.naturalWidth, im.naturalHeight);
+        const ex = r.left - view.left + (r.width - cb.dw) / 2 - cx0;
+        const ey = r.top - view.top + (r.height - cb.dh) / 2 - cy0;
+        return { x0: ex, y0: ey, x1: ex + cb.dw, y1: ey + cb.dh };
+      });
+      const nearEdge = (i, j) => edges.some(e => {
+        const inY = j >= e.y0 - 2 && j <= e.y1 + 2;
+        const inX = i >= e.x0 - 2 && i <= e.x1 + 2;
+        return (inY && (Math.abs(i - e.x0) <= 2 || Math.abs(i - e.x1) <= 2)) ||
+               (inX && (Math.abs(j - e.y0) <= 2 || Math.abs(j - e.y1) <= 2));
+      });
       const dimMatch = Math.round(cw2) === cw && Math.round(ch2) === ch;
       const sx = Math.round(cx0), sy = Math.round(cy0);
       const sc = document.createElement('canvas'); sc.width = view.width; sc.height = view.height;
@@ -289,7 +305,7 @@ async function main() {
       const badSpots = [], grossSpots = [];
       for (let j = 0; j < ch; j++) for (let i = 0; i < cw; i++) {
         const k = (j * cw + i) * 4;
-        if (mixed(i, j)) { masked++; continue; }
+        if (mixed(i, j) || nearEdge(i, j)) { masked++; continue; }
         if (capData[k + 3] === 0) {
           transparent++;
           const d = Math.abs(shotData[k] - bgm[0]) + Math.abs(shotData[k+1] - bgm[1]) + Math.abs(shotData[k+2] - bgm[2]);
@@ -316,9 +332,30 @@ async function main() {
         }
         if (d > 24) { bad++; if (badSpots.length < 40) badSpots.push([i, j, capData[k], capData[k+1], capData[k+2], shotData[k], shotData[k+1], shotData[k+2]]); }
       }
+      // Photo metric: per-pixel comparison cannot be fair for a downscaled photo,
+      // because the compositor and canvas each resample the same source and pick
+      // different neighbours — measured at mean 1.1 / max 22 on 16x16 block means
+      // for a correct capture, against mean 39 / max 234 for a swapped-image
+      // mismatch. Block means absorb the resampling phase while any structural
+      // error (wrong image, gap, misplacement) still moves whole blocks.
+      const BS = 16, bw = Math.ceil(cw / BS), bh = Math.ceil(ch / BS);
+      const bdiffs = [];
+      for (let by = 0; by < bh; by++) for (let bx = 0; bx < bw; bx++) {
+        let sCap = 0, sShot = 0, m = 0;
+        for (let j = by * BS; j < Math.min((by + 1) * BS, ch); j++)
+          for (let i = bx * BS; i < Math.min((bx + 1) * BS, cw); i++) {
+            const k = (j * cw + i) * 4;
+            sCap += (capData[k] + capData[k + 1] + capData[k + 2]) / 3;
+            sShot += (shotData[k] + shotData[k + 1] + shotData[k + 2]) / 3;
+            m++;
+          }
+        bdiffs.push(Math.abs(sCap - sShot) / m);
+      }
+      const blockAvg = bdiffs.reduce((a, b) => a + b, 0) / bdiffs.length;
+      const blockMax = Math.max(...bdiffs);
       let h1 = 0x811c9dc5;
       for (let q = 0; q < cap.length; q++) { h1 ^= cap[q]; h1 = Math.imul(h1, 0x01000193) >>> 0; }
-      return { bad, masked, n, transparent, transparentWrong, cw, ch, dimMatch, gross, grossFar, mean: n ? sumD / n : 0, hist, badSpots, grossSpots,
+      return { bad, blockAvg, blockMax, masked, n, transparent, transparentWrong, cw, ch, dimMatch, gross, grossFar, mean: n ? sumD / n : 0, hist, badSpots, grossSpots,
         hash: h1.toString(16) };
     }, { cap: capBytes, shot: Array.from(shot) });
     res.capBytes = capBytes;
@@ -433,7 +470,7 @@ async function main() {
       return (b.left - (a.left + a.width)) / zoom;
     });
   }
-  await page.click('.zoom-preset[data-zoom="4"]');
+  await page.click('.zoom-preset[data-zoom="5"]');
   await page.waitForTimeout(200);
   const seam4 = await joinedSeam();
   await page.evaluate(() => { document.getElementById('zoomInput').value = '50'; document.getElementById('zoomInput').dispatchEvent(new Event('blur')); });
@@ -442,9 +479,9 @@ async function main() {
   const seamH = await joinedSeam();
   await page.click('.zoom-preset[data-zoom="1"]');
   await page.waitForTimeout(200);
-  check('joined shared edge glued at 400% and 50% zoom',
+  check('joined shared edge glued at 500% and 50% zoom',
     Math.abs(seam4) < 4 && Math.abs(seamH) < 4,
-    `seam400=${Number(seam4).toFixed(2)} seam50=${Number(seamH).toFixed(2)} (pre-zoom px)`);
+    `seam500=${Number(seam4).toFixed(2)} seam50=${Number(seamH).toFixed(2)} (pre-zoom px)`);
   async function joinedExport(pg, probes) {
     await pg.evaluate(() => { window.__capDone = false; });
     await pg.click('#captureBtn');
@@ -601,8 +638,8 @@ async function main() {
   const rest = await captureCaseOn(page3, 'diagonal-slash', 35);
   const ref = await photoRefCheck(page3, rest.capBytes);
   check('capture==viewport samples diagonal@35% at rest',
-    ref.mism === 0 && rest.transparentWrong === 0 && rest.dimMatch && rest.bad / rest.n < 0.10,
-    `refMism=${ref.mism}/${ref.sampled} badFrac=${(rest.bad / rest.n).toFixed(3)} tWrong=${rest.transparentWrong} mean=${rest.mean.toFixed(2)} size=${rest.cw}x${rest.ch}` +
+    ref.mism === 0 && rest.transparentWrong === 0 && rest.dimMatch && rest.blockAvg < 5 && rest.blockMax < 60,
+    `refMism=${ref.mism}/${ref.sampled} blockAvg=${rest.blockAvg.toFixed(2)} blockMax=${rest.blockMax.toFixed(1)} tWrong=${rest.transparentWrong} size=${rest.cw}x${rest.ch}` +
     (ref.mism ? ` spots=${JSON.stringify(ref.mismSpots)}` : ''));
   // drag to pan, then capture again
   const c = await page3.evaluate(() => { const r = document.getElementById('stage').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
@@ -613,8 +650,8 @@ async function main() {
   await page3.waitForTimeout(300);
   const dragged = await captureCaseOn(page3, 'diagonal-slash', 35);
   check('capture reproduces pan (matches panned viewport, differs from rest)',
-    dragged.hash !== rest.hash && dragged.dimMatch && dragged.transparentWrong === 0 && dragged.bad / dragged.n < 0.10,
-    `rest=${rest.hash} dragged=${dragged.hash} badFrac=${(dragged.bad / dragged.n).toFixed(3)} tWrong=${dragged.transparentWrong} mean=${dragged.mean.toFixed(2)} size=${dragged.cw}x${dragged.ch}`);
+    dragged.hash !== rest.hash && dragged.dimMatch && dragged.transparentWrong === 0 && dragged.blockAvg < 5 && dragged.blockMax < 60,
+    `rest=${rest.hash} dragged=${dragged.hash} blockAvg=${dragged.blockAvg.toFixed(2)} blockMax=${dragged.blockMax.toFixed(1)} tWrong=${dragged.transparentWrong} size=${dragged.cw}x${dragged.ch}`);
 
   // ================= 10. no native-drag hijack: press on the clip wrapper
   // (letterbox, the miss you get chasing the moving slider during autoplay) must

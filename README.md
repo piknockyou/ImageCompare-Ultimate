@@ -68,9 +68,9 @@ four view modes with cursor-anchored zoom, drag-to-pan, and a PNG capture export
 4. Use the header controls:
     - **View toggles**: Split · Joined · Diff · Solo
     - **Layout** (Joined only): A | B or A over B
-   - **Slider mode** (Split only): vertical / diagonal `/` / diagonal `\` / horizontal
+   - **Slider mode** (Split only): glyph buttons for vertical, diagonal `/`, diagonal `\`, horizontal
    - **Capture** (📷, primary): current view as PNG in every mode (first in the action group, per toolbar convention)
-   - **Zoom**: presets (100%–1000%), a custom % input, or the mouse wheel
+   - **Zoom**: presets (100%, 200%, 500%, 1000%), a custom % input, or the mouse wheel
    - **Play** (▶ green / ⏹ red): auto-sweep the slider (speed factor ×, keeps running while panning)
     - **Fullscreen** (⛶), **theme**, **Reset**, **Close** (square icon buttons; destructive/exit last)
    - **Base: A/B** (Solo only, next to the view toggles): which image shows at rest
@@ -124,6 +124,7 @@ Why the tool behaves the way it does, where the reason is not obvious from the c
 - **Joined zoom is rigid about the group center.** Both images are re-anchored per frame to `group center + zoom × (base center − group center)`, so the shared edge and the gap scale with the zoom. Scaling each image about its own center instead makes the pair overlap when zoomed in and split apart when zoomed out.
 - **The capture divider is a channel inversion** (`255 − v`) of the touching pixel on each side, not a hue rotation and not a fixed color: inversion is the maximum-contrast opposite on any content, and it stays visible on mid-grays where a hue complement can match luminance.
 - **In-page drags are cancelled at the document level.** A native HTML5 drag started from any wrapper or letterbox fires `pointercancel` and takes the gesture away, leaving a press that tracks a few pixels and then dies. OS file drops for upload never fire an in-page `dragstart`, so uploads are unaffected.
+- **The toolbar stays on one row down to ~1200px.** The four slider modes are glyph buttons and the zoom presets are 100/200/500/1000; those two choices are what buy the room, so adding a fifth preset or long mode labels pushes the row over. Below that width the action group wraps onto a second row and stays right-aligned instead of squeezing controls.
 - **Capture is WYSIWYG, not fit-only:** crop and geometry come from the live `getBoundingClientRect` boxes, so pan and zoom are reproduced and the capture cannot drift from the viewport.
 
 ---
@@ -134,5 +135,5 @@ Why the tool behaves the way it does, where the reason is not obvious from the c
 - The code is heavily commented with per-function docstrings and `@credit` tags
   mapping each piece back to its source project.
 - Verified by `tests/e2e.cjs`: 38 assertions covering drop routing, auto-start, slot swaps, capture-vs-viewport in every slider mode, joined export, and the gesture regressions.
-- `screenshot.jpg` is the README teaser; regenerate it with `node scripts/screenshot.cjs` after changing the UI.
+- `screenshot.jpg` is the README teaser, square so the README shows more of the tool; regenerate it after a UI change with `node scripts/screenshot.cjs --viewport 1200x1200 --fit` (drop the teaser pair into `samples/teaser/` first, or pass two paths).
 
