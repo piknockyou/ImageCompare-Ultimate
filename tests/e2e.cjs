@@ -333,6 +333,53 @@ async function main() {
   const rv = await captureCase('vertical', 65);
   check('capture==viewport vertical@65%', rv.bad === 0 && rv.transparentWrong === 0 && rv.dimMatch, `bad=${rv.bad} tWrong=${rv.transparentWrong}`);
 
+  // ================= 6b. UI batch: divider checkbox, 1000% zoom, theme icon, download hover ===
+  await page.evaluate(() => {
+    document.querySelector('#sliderModeGroup button[data-mode="vertical"]').click();
+    setSplit(50);
+    document.getElementById('dividerCapture').checked = true;
+  });
+  const rDiv = await captureCase('vertical', 50);
+  const seamPx = await page.evaluate(async ({ cap }) => {
+    const bmp = await createImageBitmap(new Blob([new Uint8Array(cap)]));
+    const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
+    const g = c.getContext('2d'); g.drawImage(bmp, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    const k = ((Math.floor(c.height / 2) * c.width) + Math.floor(c.width / 2)) * 4;
+    return [d[k], d[k+1], d[k+2]];
+  }, { cap: rDiv.capBytes });
+  check('divider checkbox burns seam into capture',
+    rDiv.dimMatch && seamPx.every(v => v >= 200),
+    `seam=${seamPx} size=${rDiv.cw}x${rDiv.ch}`);
+  await page.evaluate(() => { document.getElementById('dividerCapture').checked = false; });
+
+  await page.click('.zoom-preset[data-zoom="10"]');
+  check('1000% zoom preset selectable',
+    await page.evaluate(() => document.getElementById('zoomInput').value) === '1000');
+  await page.click('.zoom-preset[data-zoom="1"]');
+
+  const iconBefore = await page.evaluate(() => document.getElementById('themeIcon').textContent);
+  await page.click('#themeBtn');
+  const themeAfter = await page.evaluate(() => ({
+    icon: document.getElementById('themeIcon').textContent,
+    theme: document.documentElement.getAttribute('data-theme') || 'dark',
+  }));
+  check('theme button shows moon/sun and toggles theme',
+    iconBefore === '☀' && themeAfter.icon === '☾' && themeAfter.theme === 'light',
+    `icon=${iconBefore}->${themeAfter.icon} theme=${themeAfter.theme}`);
+  await page.click('#themeBtn'); // restore dark default
+
+  await page.click('#combineBtn');
+  await page.waitForFunction(() => !!document.getElementById('resultImage').getAttribute('src'), null, { timeout: 10000 });
+  await page.hover('#resultDownload');
+  await page.waitForTimeout(350); // let the 0.15s hover transition settle
+  const dlAlpha = await page.evaluate(() => {
+    const m = getComputedStyle(document.getElementById('resultDownload')).backgroundColor.match(/[\d.]+/g).map(Number);
+    return m.length === 4 ? m[3] : 1;
+  });
+  check('download hover background is solid', dlAlpha === 1, `alpha=${dlAlpha}`);
+  await page.click('#splitBtn');
+
   // ================= 7. TIFF upload path =================
   const page2 = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   await page2.goto(PAGE_URL);

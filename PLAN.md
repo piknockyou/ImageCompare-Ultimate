@@ -108,6 +108,54 @@
   transparent capture, TIFF support, E2E suite.
 - This file stays as the record; delete nothing else.
 
+### 2.7 UI batch: divider-in-capture, solid Download hover, moon/sun theme, 1000% zoom
+
+Goal (user intent): (a) optional divider line burned into captured PNGs;
+(b) `Download` (and `Compare`) hover state solid, not translucent; (c) theme
+toggle shows moon/sun icon instead of the word "Theme"; (d) 1000% zoom preset.
+
+Code-level plan (all in `ImageCompare-Ultimate.html` unless noted):
+
+1. **Divider-in-capture checkbox**
+   - Header, after `#captureBtn`: `<label class="pill" id="dividerCapWrap"
+     title="Include the split divider line in captured PNGs"><input
+     type="checkbox" id="dividerCapture">Divider</label>`, default unchecked
+     (keeps current pixel-exact exports the default).
+   - `setViewMode`: `dividerCapWrap.style.display = isSplit ? 'inline-flex' : 'none'`
+     (divider exists only in split; side capture is unchanged).
+   - `captureComparison`, split branch, after both image draws: if checked, draw
+     the divider in container coords (ctx already translated): vertical
+     `fillRect(hx-1, 0, 2, H)`, horizontal `fillRect(0, hy-1, W, 2)`, diagonals
+     `translate+rotate` mirroring `updateDividerLine` (`atan2(w,h)` /
+     `atan2(w,-h)`, `len = hypot*1.2`, `fillRect(-1, -len/2, 2, len)`), color from
+     `getComputedStyle(dividerLine).backgroundColor`. Handle circle NOT drawn
+     (divider only, per request).
+   - E2E: vertical@50% solids, check the box, capture, assert center-column pixel
+     near-white + `dimMatch` + hash differs from unchecked; uncheck after.
+2. **Solid primary-button hover**
+   - Add `--accent-solid: #4c63d2` to both theme blocks; change
+     `.btn.primary:hover` to `background: var(--accent-solid); color: #fff;
+     border-color: var(--accent-solid)`. Covers `Compare` + result `Download`
+     (both are `.btn.primary`); no other buttons touched.
+   - E2E: enter combine mode, hover `#resultDownload`, assert computed
+     `background-color` alpha is 1.
+3. **Moon/sun theme button**
+   - Replace button text with `<span id="themeIcon">☀</span>` (dark default);
+     new `updateThemeBtn()` sets icon/title/aria-label from current theme:
+     dark → `☀` "Switch to light theme", light → `☾` "Switch to dark theme".
+     Call from `initTheme()` and the toggle handler. Stays in header-right slot.
+   - E2E: click toggles icon + `documentElement` theme attr.
+4. **1000% zoom preset**
+   - Add `<button class="zoom-preset" data-zoom="10" title="Zoom 1000%">1000%</button>`
+     after 500%. Existing `updateZoomUI` exact-match + wheel clamp (max 100)
+     already cover it; header wraps on small screens.
+   - E2E: click it, assert `zoomInput.value === '1000'`.
+5. **Docs**: `README.md` zoom line 100%–500% → 100%–1000%; one bullet for the
+   divider-capture option.
+
+Verification: `node --check` on extracted scripts (as before) + full
+`tests/e2e.cjs` run, must be ALL PASS.
+
 ## 3. Risks / open points (decided, not asked)
 
 - Auto-start fires also when the second image arrives long after the first — intended.

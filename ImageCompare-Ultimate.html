@@ -59,6 +59,7 @@
     --accent-border: rgba(120,140,255,0.25);
     --accent-text: rgba(120,140,255,0.9);
     --accent-strong: rgba(120,140,255,0.35);
+    --accent-solid: #4c63d2;
     --viewport-bg: #0f1119;
     --danger: rgba(220,50,50,0.2);
     --danger-text: #f66;
@@ -77,6 +78,7 @@
     --accent-border: #bfdbfe;
     --accent-text: #2563eb;
     --accent-strong: #dbeafe;
+    --accent-solid: #4c63d2;
     --viewport-bg: #e5e7eb;
     --danger: #fee2e2;
     --danger-text: #dc2626;
@@ -128,7 +130,7 @@
     white-space: nowrap; }
   .btn:hover { background: var(--control-hover); color: var(--text); }
   .btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent-border); }
-  .btn.primary:hover { background: var(--accent-strong); }
+  .btn.primary:hover { background: var(--accent-solid); color: #fff; border-color: var(--accent-solid); }
   .btn.close:hover { background: var(--danger); color: var(--danger-text); border-color: var(--danger); }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
@@ -301,6 +303,7 @@
         <button class="zoom-preset" data-zoom="3" title="Zoom 300%">300%</button>
         <button class="zoom-preset" data-zoom="4" title="Zoom 400%">400%</button>
         <button class="zoom-preset" data-zoom="5" title="Zoom 500%">500%</button>
+        <button class="zoom-preset" data-zoom="10" title="Zoom 1000%">1000%</button>
         <span class="zoom-custom"><input class="zoom-input" id="zoomInput" type="text" inputmode="numeric" title="Custom zoom percentage (type any value)">%</span>
       </div>
       <div class="play-group" id="playGroup">
@@ -309,8 +312,9 @@
       </div>
       <button class="btn" id="fullscreenBtn" title="Toggle fullscreen">Full Screen</button>
       <button class="btn" id="captureBtn" title="Save current view as PNG">Capture</button>
+      <label class="pill" id="dividerCapWrap" title="Burn the split divider line into captured PNGs" style="display:none;"><input type="checkbox" id="dividerCapture">Divider</label>
       <button class="btn" id="soloBaseBtn" style="display:none;" title="Swap which image is shown at rest">Base: A</button>
-      <button class="btn" id="themeBtn" title="Toggle light / dark">Theme</button>
+      <button class="btn" id="themeBtn" title="Switch to light theme" aria-label="Switch to light theme"><span id="themeIcon" aria-hidden="true">☀</span></button>
       <button class="btn" id="resetBtn" title="Reset zoom, pan and slider">Reset</button>
       <button class="btn close" id="backBtn" title="Back to upload">Close</button>
     </div>
@@ -2254,7 +2258,10 @@ const playGroup = document.getElementById('playGroup');
 const fullscreenBtn = document.getElementById('fullscreenBtn');
 const fullscreenBtn2 = document.getElementById('fullscreenBtn2');
 const captureBtn = document.getElementById('captureBtn');
+const dividerCapWrap = document.getElementById('dividerCapWrap');
+const dividerCapture = document.getElementById('dividerCapture');
 const themeBtn = document.getElementById('themeBtn');
+const themeIcon = document.getElementById('themeIcon');
 const resetBtn = document.getElementById('resetBtn');
 const backBtn = document.getElementById('backBtn');
 const splitBtn = document.getElementById('splitBtn');
@@ -2371,9 +2378,22 @@ function showToast(message, type = 'success') {
  * apply it immediately so there is no flash of the wrong theme on load.
  * @credit theme persistence pattern adapted from compare-image (tchung1970, MIT)
  */
+/**
+ * Reflect the current theme in the toggle button: sun in dark mode (click for
+ * light), moon in light mode (click for dark). Icon + tooltip + ARIA stay in sync.
+ */
+function updateThemeBtn() {
+  const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  const dark = cur !== 'light';
+  themeIcon.textContent = dark ? '☀' : '☾';
+  const label = dark ? 'Switch to light theme' : 'Switch to dark theme';
+  themeBtn.title = label;
+  themeBtn.setAttribute('aria-label', label);
+}
 (function initTheme() {
   const saved = localStorage.getItem('ictheme');
   if (saved === 'light' || saved === 'dark') document.documentElement.setAttribute('data-theme', saved);
+  updateThemeBtn();
 })();
 /**
  * Toggle light <-> dark and persist the choice to localStorage.
@@ -2383,6 +2403,7 @@ themeBtn.addEventListener('click', () => {
   const next = cur === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
   localStorage.setItem('ictheme', next);
+  updateThemeBtn();
   showToast(`Theme: ${next}`);
 });
 
@@ -2707,6 +2728,7 @@ function setViewMode(m) {
   playGroup.style.display = isSplit ? 'flex' : 'none';
   fullscreenBtn.style.display = (isSplit || isSolo) ? 'inline-flex' : 'none';
   captureBtn.style.display = (isSplit || isSide) ? 'inline-flex' : 'none';
+  dividerCapWrap.style.display = isSplit ? 'inline-flex' : 'none';
   soloBaseBtn.style.display = isSolo ? 'inline-flex' : 'none';
   combineControls.style.display = isCombo ? 'flex' : 'none';
 
@@ -3291,7 +3313,9 @@ function drawContain(ctx, img, x, y, w, h) {
  * Split mode draws image B (base) then clips image A to the active slider
  * polygon (container space); side-by-side draws both at their live positions.
  * Letterbox / gap zones are filled with the viewport background so the PNG
- * matches the screen, never transparent wedges.
+ * matches the screen, never transparent wedges. In split mode the on-screen
+ * divider line is burned in only when the Divider checkbox is on (off by
+ * default, keeping pixel-exact exports).
  * @credit capture approach from compare-image (tchung1970, MIT)
  */
 function captureComparison() {
@@ -3348,6 +3372,27 @@ function captureComparison() {
     traceClip(getLeftClipPoints());
     drawContain(ctx, imgA, boxA.x, boxA.y, boxA.w, boxA.h);
     ctx.restore();
+    // Optional burn-in of the visible split divider (same geometry as the
+    // on-screen divider line; the slider handle itself is never drawn).
+    if (dividerCapture.checked) {
+      ctx.save();
+      ctx.fillStyle = getComputedStyle(dividerLine).backgroundColor;
+      if (sliderMode === 'vertical') {
+        const x = handleX * arect.width;
+        ctx.fillRect(x - 1, 0, 2, arect.height);
+      } else if (sliderMode === 'horizontal') {
+        const y = handleY * arect.height;
+        ctx.fillRect(0, y - 1, arect.width, 2);
+      } else {
+        const hx = handleX * arect.width, hy = handleY * arect.height;
+        const rot = sliderMode === 'diagonal-slash'
+          ? Math.atan2(arect.width, arect.height)
+          : Math.atan2(arect.width, -arect.height);
+        const len = Math.hypot(arect.width, arect.height) * 1.2;
+        ctx.translate(hx, hy); ctx.rotate(rot); ctx.fillRect(-1, -len / 2, 2, len);
+      }
+      ctx.restore();
+    }
   } else {
     for (const b of boxes) drawContain(ctx, b.im, b.x, b.y, b.w, b.h);
   }

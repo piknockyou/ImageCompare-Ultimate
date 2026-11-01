@@ -44,6 +44,9 @@ capture export.
 - **Capture matches viewport** — WYSIWYG PNG: reproduces pan/zoom from the live
   layout, split line and division exactly as shown, including diagonals;
   cropped to the visible union; letterbox filled with viewport bg.
+  - **Divider burn-in (optional)** — the split-view `Divider` checkbox draws the
+  visible divider line into captured PNGs; off by default for pixel-exact exports.
+  - **Theme icon** — moon/sun toggle button instead of a text label.
 - **TIFF + broad formats** — `.tif/.tiff` decode in-page via vendored UTIF.js
   (MIT, Photopea, offline single-file); other extensions (HEIC/HEIF, AVIF, BMP,
   ICO, SVG, WebP, RAW) accepted when the browser can render them, with a clear
@@ -66,7 +69,7 @@ capture export.
 4. Use the header controls:
    - **View toggles**: Split · Side by Side · Combine · Diff · Solo
    - **Slider mode** (Split only): vertical / diagonal `/` / diagonal `\` / horizontal
-   - **Zoom**: presets (100%–500%), a custom % input, or the mouse wheel
+   - **Zoom**: presets (100%–1000%), a custom % input, or the mouse wheel
    - **Play**: auto-sweep the slider (adjust speed with the slider)
    - **Full Screen**, **Capture** (PNG), **Theme**, **Reset**, **Close**
 
