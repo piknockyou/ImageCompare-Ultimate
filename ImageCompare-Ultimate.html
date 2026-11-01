@@ -3095,8 +3095,8 @@ compareView.addEventListener('pointerleave', () => { if (mode === 'solo') { solo
  *   panX += cx * (1/newZoom - 1/zoom)
  * because the on-screen position of a content point is
  *   center + zoom*(point + pan). To keep it constant we solve for the new pan.
- * For side-by-side we anchor to whichever panel is under the cursor so each
- * image zooms around its own center.
+ * Anchoring uses the active container rect, so the joined pair (one shared
+ * transform) pans rigidly together and can never separate.
  * @param {WheelEvent} e
  * @credit cursor-anchored zoom math adapted from compare-image (tchung1970, MIT)
  */

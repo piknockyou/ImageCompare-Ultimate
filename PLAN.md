@@ -47,7 +47,7 @@
   `imgA`/`imgB`, sets all four `<img>` srcs from `fileAUrl`/`fileBUrl`, fires `cb`
   when both loaded. `startCompare` refactored onto it (fresh-compare callback);
   new `reloadCompare()` uses it with a mode-aware callback (split→`normalizeSplit`
-  + keep slider, side→`normalizeSideBySide`, combine/diff→re-render, solo→base).
+  + keep slider, joined→`normalizeJoined`, diff→re-render, solo→base).
   `reloadCompare` resets zoom/pan (stale offsets are meaningless for new images)
   but keeps view mode and slider position.
 - New `stage` drop handler: `>= 2` files → `await` both slot handlers, then
@@ -71,9 +71,6 @@
 - E2E pixel proof: per-mode capture-vs-screenshot compare (solids bitwise exact);
   photo proof via deterministic in-page re-render reference (`refMism === 0`);
   drag changes the capture and it still matches the panned viewport.
-- E2E pixel proof: per-mode capture-vs-screenshot compare (solids bitwise exact);
-  photo proof via deterministic in-page re-render reference (`refMism === 0` over
-  a grid) + no transparency holes + drag byte-identity (pan ignored by design).
 - Harness lesson: `getContext('2d', {willReadFrequently:true})` rasterizes
   differently than the default context — reference canvases must use the plain
   context, else off-by-one speckle everywhere. Remaining photo-vs-screenshot
@@ -95,7 +92,7 @@
   receives clicks, i.e. the pan-capture fix);
   (j) real samples, diagonal 35%: deterministic re-render reference must match
   bitwise (`refMism === 0`), screenshot deltas stay raster-noise-level;
-  (k) after drag, capture bytes identical to pre-drag (pan ignored by design).
+  (k) after drag, the capture differs from pre-drag and still matches the panned viewport (pan reproduced by design).
 - Fixed along the way: concurrent-finish double-start starving the load gate
   (→ same-src counting + error listener + second finisher heals via reload);
   in-view fullscreen button swallowed by stage pointer-capture (→ ignore clicks
@@ -104,8 +101,8 @@
 
 ### 2.6 Docs
 
-- `README.md`: one line each for auto-start, compare-mode drops, fit-only
-  transparent capture, TIFF support, E2E suite.
+- `README.md`: one line each for auto-start, compare-mode drops, WYSIWYG
+  capture, transparent-bg export, TIFF support, E2E suite.
 - This file stays as the record; delete nothing else.
 
 ### 2.7 UI batch: divider-in-capture, solid Download hover, moon/sun theme, 1000% zoom
@@ -137,8 +134,8 @@ Code-level plan (all in `ImageCompare-Ultimate.html` unless noted):
      `.btn.primary:hover` to `background: var(--accent-solid); color: #fff;
      border-color: var(--accent-solid)`. Covers `Compare` + result `Download`
      (both are `.btn.primary`); no other buttons touched.
-   - E2E: enter combine mode, hover `#resultDownload`, assert computed
-     `background-color` alpha is 1.
+    - E2E: hover `#compareBtn` (the Download button was removed in §2.8),
+     assert computed `background-color` alpha is 1.
 3. **Moon/sun theme button**
    - Replace button text with `<span id="themeIcon">☀</span>` (dark default);
      new `updateThemeBtn()` sets icon/title/aria-label from current theme:
