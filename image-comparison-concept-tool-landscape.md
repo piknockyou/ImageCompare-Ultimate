@@ -1,11 +1,26 @@
-# Image Comparison Slider Tools - Research Report
-
-> Research Date: 2026-07-14
-> Goal: Find the most lightweight, zero-install solution for comparing two images via drag-drop + slider, with optional aspect-ratio normalization.
->
-> **Filter:** Only tools that are **FOSS** (open source license) OR can be used entirely locally (no server uploads). Browser-based tools are included if processing happens client-side.
-
 ---
+title: Image Comparison Tool Landscape
+description: "Survey of open-source and fully local image-comparison tools — ready-to-use apps and embeddable JavaScript libraries — used as the source research for this tool. Star counts and live URLs are point-in-time and need re-verification before reliance."
+type: concept
+tags:
+  - image-comparison
+  - before-after-slider
+  - landscape
+  - foss
+  - web-components
+created: 2026-07-14
+updated: 2026-11-01
+---
+# Image Comparison Tool Landscape
+
+A survey of open-source and fully local tools for comparing two images side by side with a drag-and-drop slider, plus optional aspect-ratio normalization. It covers ready-to-use browser apps and embeddable libraries, and it is the source research from which this single-file tool was merged. Star counts, licenses and live URLs are point-in-time observations from the survey date and need re-verification before anyone relies on them.
+
+## Scope and Filter
+
+- Surveyed on 2026-07-14.
+- Goal: find the most lightweight, zero-install solution for comparing two images via drag-drop plus slider, with optional aspect-ratio normalization.
+- Filter: only tools that are **FOSS** (open source license) OR can be used entirely locally (no server uploads). Browser-based tools are included if processing happens client-side.
+- Re-verify before relying on any entry: stars, licenses, live demo URLs and maintenance status all move.
 
 ## Ready-to-Use Tools (Drag-Drop + Slider)
 
@@ -50,7 +65,7 @@ Tools you can open in a browser, drop images in, and compare with an interactive
 
 ---
 
-## Embeddable JavaScript Libraries (**MIT — All FOSS**)
+## Embeddable JavaScript Libraries
 
 Lightweight libraries you can add to a page to provide comparison slider functionality. All are MIT-licensed and fully client-side.
 
@@ -63,7 +78,7 @@ Lightweight libraries you can add to a page to provide comparison slider functio
 | **image-comparison-slider** ([Paul-Browne](https://github.com/Paul-Browne/image-comparison-slider))   | 29    | Minimal   | Single JS + single CSS file, no build step. Extremely simple.                                         |
 | **before-after** ([yoriiis](https://github.com/yoriiis/before-after))                                 | 19    | Small     | ESM-only (v4), TypeScript, horizontal/vertical, cursor follow. NPM.                                   |
 | **slider-before-after** ([piecioshka](https://github.com/piecioshka/slider-before-after))             | 13    | Tiny      | Uses `<input type="range">` + CSS variables. No JS logic beyond the range input.                      |
-| **slick-image-compare** ([lemon3](https://github.com/lemon3/slick-image-compare))                     | 10    | Small     | Vanilla JS + optional React/Astro wrappers. Uses `requestAnimationFrame`.                             |
+| **slick-image-compare** ([lemon3](https://github.com/lemon3/slick-image-compare))                     | 10    | Small     | Vanilla JS + optional React/Astro wrappers. Uses `requestAnimationFrame`.                              |
 | **before-after** ([markpbaggett](https://github.com/markpbaggett/before-after))                       | 4     | ~3KB      | Two web components: `<before-after>` (split-slider) + `<opacity-compare>` (opacity blend).            |
 | **vanilla-images-compare** ([sylvaincombes](https://github.com/sylvaincombes/vanilla-images-compare)) | 0     | Small     | Brand new (Apr 2026), TypeScript, supports Pointer Events + touch + mouse + click modes.              |
 
@@ -77,5 +92,3 @@ Lightweight libraries you can add to a page to provide comparison slider functio
 | Most feature-rich comparison (images + video + audio + 3D) | **DualView** (MIT, `git clone && npm run dev`)                | 50+ WebGL shaders, 100+ transitions, document diff     |
 | Lightest embeddable web component                          | **img-comparison-slider** (MIT, ~4KB gzip, 863★)             | Works with any framework, CDN, keyboard accessible     |
 | Single-file tool (no dependencies at all)                  | **tchung1970/compare-image** (MIT, one HTML file)             | Clip-path slider, zoom/pan, canvas export              |
-
-

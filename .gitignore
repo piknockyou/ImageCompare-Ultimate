@@ -1,6 +1,7 @@
-# binaries and demo images: on disk, never versioned
+# binaries and demo images: on disk, never versioned — except the README teaser
 *.png
 *.jpg
 *.jpeg
 *.ico
+!screenshot.jpg
 node_modules/

@@ -7,6 +7,8 @@ Your images never leave your machine.
 Drop two images (or paste from clipboard / click to browse), then compare them in
 four view modes with cursor-anchored zoom, drag-to-pan, and a PNG capture export.
 
+![ImageCompare-Ultimate split view comparison](screenshot.jpg)
+
 ---
 
 ## Features
@@ -102,9 +104,13 @@ compare_images_in_browser/
 ├── ImageCompare-Ultimate.html   # the entire tool (single self-contained file)
 ├── LICENSE                      # MIT + upstream attribution
 ├── README.md                    # this file
+├── screenshot.jpg               # README teaser
+├── image-comparison-concept-tool-landscape.md   # survey of the tools this one merges
 ├── tests/                       # E2E suite (Playwright + system Chrome)
 │   ├── e2e.cjs
 │   └── package.json
+├── scripts/
+│   └── screenshot.cjs           # regenerates screenshot.jpg after a UI change
 └── samples/                     # two real photos used by the E2E photo cases (not versioned)
 ```
 
@@ -128,4 +134,5 @@ Why the tool behaves the way it does, where the reason is not obvious from the c
 - The code is heavily commented with per-function docstrings and `@credit` tags
   mapping each piece back to its source project.
 - Verified by `tests/e2e.cjs`: 38 assertions covering drop routing, auto-start, slot swaps, capture-vs-viewport in every slider mode, joined export, and the gesture regressions.
+- `screenshot.jpg` is the README teaser; regenerate it with `node scripts/screenshot.cjs` after changing the UI.
 
