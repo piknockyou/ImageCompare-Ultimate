@@ -5,10 +5,7 @@ JS) lives in one self-contained file — no server, no CDN, no network calls.
 Your images never leave your machine.
 
 Drop two images (or paste from clipboard / click to browse), then compare them in
-five different view modes with cursor-anchored zoom, drag-to-pan, and a PNG
-capture export.
-
-> ![tool teaser](screenshot.jpg)
+four view modes with cursor-anchored zoom, drag-to-pan, and a PNG capture export.
 
 ---
 
@@ -94,23 +91,34 @@ their respective permissions:
 | [`image-swipe-compare`](https://github.com/hhkaos/image-swipe-compare) | [hhkaos](https://github.com/hhkaos) | MIT | `hhkaos/image-swipe-compare` | Diagonal slider modes, keyboard nav, fullscreen, autoplay |
 
 The merged deliverable (`ImageCompare-Ultimate.html`) is released under the
-**MIT License** — see [`LICENSE`](./LICENSE). The original `_Sources/` folder
-contains the upstream files for reference.
+**MIT License** — see [`LICENSE`](./LICENSE).
 
 ---
 
 ## Files
 
 ```
-Compare-Images/
+compare_images_in_browser/
 ├── ImageCompare-Ultimate.html   # the entire tool (single self-contained file)
 ├── LICENSE                      # MIT + upstream attribution
 ├── README.md                    # this file
-└── _Sources/                   # upstream reference sources (MIT)
-    ├── beforeafter-master/
-    ├── compare-image-main/
-    └── image-swipe-compare-main/
+├── tests/                       # E2E suite (Playwright + system Chrome)
+│   ├── e2e.cjs
+│   └── package.json
+└── samples/                     # two real photos used by the E2E photo cases (not versioned)
 ```
+
+---
+
+## Design notes
+
+Why the tool behaves the way it does, where the reason is not obvious from the code:
+
+- **Header order** follows published toolbar guidance: exactly one emphasized primary action placed first among the action group (SAP Fiori header toolbar, Prism, Helios), related controls grouped and ordered by frequency (Microsoft Win32 toolbar guide), destructive/exit actions last and separated, settings at the end (elementary HIG).
+- **Joined zoom is rigid about the group center.** Both images are re-anchored per frame to `group center + zoom × (base center − group center)`, so the shared edge and the gap scale with the zoom. Scaling each image about its own center instead makes the pair overlap when zoomed in and split apart when zoomed out.
+- **The capture divider is a channel inversion** (`255 − v`) of the touching pixel on each side, not a hue rotation and not a fixed color: inversion is the maximum-contrast opposite on any content, and it stays visible on mid-grays where a hue complement can match luminance.
+- **In-page drags are cancelled at the document level.** A native HTML5 drag started from any wrapper or letterbox fires `pointercancel` and takes the gesture away, leaving a press that tracks a few pixels and then dies. OS file drops for upload never fire an in-page `dragstart`, so uploads are unaffected.
+- **Capture is WYSIWYG, not fit-only:** crop and geometry come from the live `getBoundingClientRect` boxes, so pan and zoom are reproduced and the capture cannot drift from the viewport.
 
 ---
 
@@ -119,5 +127,5 @@ Compare-Images/
 - No build step, no dependencies, no internet required.
 - The code is heavily commented with per-function docstrings and `@credit` tags
   mapping each piece back to its source project.
-- Verified for correctness via JS syntax checks; please confirm interactive
-  behavior in a browser.
+- Verified by `tests/e2e.cjs`: 38 assertions covering drop routing, auto-start, slot swaps, capture-vs-viewport in every slider mode, joined export, and the gesture regressions.
+

@@ -166,6 +166,8 @@ async function main() {
       const ref = box => {
         const c = document.createElement('canvas');
         c.width = cw; c.height = ch;
+        // Plain context on purpose: getContext('2d', {willReadFrequently:true})
+        // rasterizes differently and produces off-by-one speckle against captures.
         const g = c.getContext('2d');
         g.imageSmoothingEnabled = false; g.scale(dpr, dpr); g.translate(-cx0, -cy0);
         g.fillStyle = getComputedStyle(document.getElementById('stage')).backgroundColor;
