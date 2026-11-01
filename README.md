@@ -70,9 +70,11 @@ capture export.
     - **View toggles**: Split · Joined · Diff · Solo
     - **Layout** (Joined only): A | B or A over B
    - **Slider mode** (Split only): vertical / diagonal `/` / diagonal `\` / horizontal
+   - **Capture** (📷, primary): current view as PNG in every mode (first in the action group, per toolbar convention)
    - **Zoom**: presets (100%–1000%), a custom % input, or the mouse wheel
    - **Play** (▶ green / ⏹ red): auto-sweep the slider (speed factor ×, keeps running while panning)
-    - **Fullscreen** (⛶), **Capture** (📷), **theme**, **Reset**, **Close** (square icon buttons)
+    - **Fullscreen** (⛶), **theme**, **Reset**, **Close** (square icon buttons; destructive/exit last)
+   - **Base: A/B** (Solo only, next to the view toggles): which image shows at rest
 
 > **Solo mode tip:** at rest it shows the "base" image (toggle with the
 > *Base: A/B* button). Press and hold on the image to peek at the other; drag

@@ -289,6 +289,20 @@ Code-level plan (all in `ImageCompare-Ultimate.html`, plus `tests/`, `README.md`
 Verification: `node --check` on extracted scripts + full `tests/e2e.cjs`,
 must be ALL PASS.
 
+### 2.10 Header button order (research-backed)
+
+Sources: Microsoft Win32 toolbar guide (group related, frequent-first, separate
+destructive), SAP Fiori header-toolbar order (business → content → layout
+→ generic; exactly one emphasized primary, placed leftmost even across
+groups), Prism/Helios (primary first, destructive last), elementary HIG
+(settings at the end).
+
+Applied: header-right = Capture (primary, first) → Zoom → Play+speed
+→ Fullscreen (layout) → Theme → Reset → Back (exit last).
+`Base: A/B` moved to header-left next to the view toggles (contextual control
+sits adjacent to what it modifies). Capture gets the `primary` accent style
+as the single CTA; no JS/test changes needed (all wiring is id-based).
+
 ## 3. Risks / open points (decided, not asked)
 
 - Auto-start fires also when the second image arrives long after the first — intended.
