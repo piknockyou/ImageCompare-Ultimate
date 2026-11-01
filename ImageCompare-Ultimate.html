@@ -47,6 +47,7 @@
 <style>
   :root,
   :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #1a1d2e;
     --panel: rgba(26,29,46,0.95);
     --panel-solid: #1a1d2e;
@@ -66,6 +67,7 @@
     --shadow: 0 2px 12px rgba(0,0,0,0.4);
   }
   :root[data-theme="light"] {
+    color-scheme: light;
     --bg: #f5f7fb;
     --panel: #ffffff;
     --panel-solid: #ffffff;
@@ -135,6 +137,9 @@
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .btn.icon-btn { width: 34px; height: 34px; padding: 0; font-size: 16px; line-height: 1;
     display: inline-flex; align-items: center; justify-content: center; }
+  /* Play/stop icon states: green ▶ at rest, red ⏹ while sweeping. */
+  #animateToggleBtn[data-state="play"] { color: #22c55e; }
+  #animateToggleBtn[data-state="stop"] { color: #ef4444; }
 
   .play-group { display: flex; align-items: center; gap: 8px; }
   .play-group label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
@@ -185,11 +190,8 @@
   .joined-tag { position: absolute; transform: translateX(-50%); pointer-events: none; user-select: none;
     font-weight: 600; white-space: nowrap; z-index: 5; }
 
-  .fullscreen-btn { position: absolute; top: 10px; right: 10px; z-index: 20; border: 1px solid var(--border);
-    background: var(--panel); color: var(--text); border-radius: 8px; padding: 6px 11px; font: inherit;
-    font-size: 12px; font-weight: 600; cursor: pointer; }
-  .fullscreen-btn:hover { background: var(--control-hover); }
-  .compare-container:fullscreen { background: #111827; width: 100%; height: 100%; }
+  .stage:fullscreen { background: var(--viewport-bg); }
+  :root:fullscreen { background: var(--bg); }
 
   .result-panel { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center;
     justify-content: center; gap: 14px; padding: 20px; overflow: hidden; }
@@ -213,6 +215,7 @@
   .joined-controls input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--accent-text); cursor: pointer; }
   .joined-controls select { border: 1px solid var(--border); border-radius: 6px; background: var(--control-bg);
     color: var(--text); padding: 5px 8px; font: inherit; font-size: 13px; }
+  .joined-controls select option { background: var(--panel-solid); color: var(--text); }
   .joined-controls .val { min-width: 38px; color: var(--text); font-weight: 600; }
 
   /* ---------- Upload screen ---------- */
@@ -315,12 +318,11 @@
         <span class="zoom-custom"><input class="zoom-input" id="zoomInput" type="text" inputmode="numeric" title="Custom zoom percentage (type any value)">%</span>
       </div>
       <div class="play-group" id="playGroup">
-        <button class="btn" id="animateToggleBtn" title="Play / pause auto-sweep animation">Play</button>
-        <label title="Sweep speed (seconds per pass)">Speed <input id="speedInput" type="range" min="0.5" max="8" step="0.5" value="2.5"><span id="speedValue">2.5s</span></label>
+        <button class="btn icon-btn" id="animateToggleBtn" data-state="play" title="Play auto-sweep" aria-label="Play auto-sweep">▶</button>
+        <label title="Sweep speed factor (1× = one pass per 2.5s)">Speed <input id="speedInput" type="range" min="0.25" max="4" step="0.25" value="1"><span id="speedValue">1.00×</span></label>
       </div>
-      <button class="btn" id="fullscreenBtn" title="Toggle fullscreen">Full Screen</button>
-      <button class="btn" id="captureBtn" title="Capture current view as PNG">Capture</button>
-      <label class="pill" id="dividerCapWrap" title="Burn the split divider line into captured PNGs" style="display:none;"><input type="checkbox" id="dividerCapture">Divider in capture</label>
+      <button class="btn icon-btn" id="fullscreenBtn" title="Toggle fullscreen" aria-label="Toggle fullscreen">⛶</button>
+      <button class="btn icon-btn" id="captureBtn" title="Capture current view" aria-label="Capture current view">📷</button>
       <button class="btn" id="soloBaseBtn" style="display:none;" title="Swap which image is shown at rest">Base: A</button>
       <button class="btn icon-btn" id="themeBtn" title="Switch to light theme" aria-label="Switch to light theme"><span id="themeIcon" aria-hidden="true">☀️</span></button>
       <button class="btn icon-btn" id="resetBtn" title="Reset zoom, pan and slider" aria-label="Reset zoom, pan and slider">↺</button>
@@ -341,7 +343,6 @@
         <div class="split-clip" id="splitClipB"><img id="imgB" alt="Image B"></div>
         <div class="split-clip" id="splitClip"><img id="imgA" alt="Image A"></div>
       </div></div>
-      <button class="fullscreen-btn" id="fullscreenBtn2" type="button" title="Toggle fullscreen">Full Screen</button>
       <div class="divider-line" id="dividerLine"></div>
       <div class="slider" id="slider"><div class="slider-handle" id="sliderHandle">&#8644;</div></div>
     </div>
@@ -364,7 +365,7 @@
   <div class="joined-controls" id="joinedControls">
     <div class="ctl"><label>Gap</label><input type="range" min="0" max="50" value="0" id="gapControl" title="Gap between images (0 = snug)"><span class="val" id="gapValue">0px</span></div>
     <div class="ctl"><label>Background</label><input type="color" value="#ffffff" id="bgColor" title="Background color"></div>
-    <div class="ctl"><label title="Keep the background transparent in PNG/WebP exports (JPEG has no alpha and flattens to white)">Transparent <input type="checkbox" id="transparentBg"></label></div>
+    <div class="ctl"><label title="Keep the background transparent in PNG/WebP exports (JPEG has no alpha and flattens to white)">Transparent <input type="checkbox" id="transparentBg" checked></label></div>
     <div class="ctl"><label>Label Size</label><input type="range" min="6" max="64" value="20" id="fontSize" title="Label font size"><span class="val" id="fontValue">20px</span></div>
     <div class="ctl"><label>Label Color</label><input type="color" value="#000000" id="labelColor" title="Label color"></div>
     <div class="ctl"><label>Format</label>
@@ -2266,10 +2267,7 @@ const sliderModeGroup = document.getElementById('sliderModeGroup');
 const zoomGroup = document.getElementById('zoomGroup');
 const playGroup = document.getElementById('playGroup');
 const fullscreenBtn = document.getElementById('fullscreenBtn');
-const fullscreenBtn2 = document.getElementById('fullscreenBtn2');
 const captureBtn = document.getElementById('captureBtn');
-const dividerCapWrap = document.getElementById('dividerCapWrap');
-const dividerCapture = document.getElementById('dividerCapture');
 const themeBtn = document.getElementById('themeBtn');
 const themeIcon = document.getElementById('themeIcon');
 const resetBtn = document.getElementById('resetBtn');
@@ -2346,6 +2344,7 @@ let sliderPos = 0.5, handleX = 0.5, handleY = 0.5; // slider position (0..1) + f
 let sliderMode = 'vertical';                   // 'vertical' | 'horizontal' | 'diagonal-slash' | 'diagonal-backslash'
 let mode = 'split';                            // 'split' | 'joined' | 'diff' | 'solo'
 let joinedLayout = 'h';                      // 'h' = A|B, 'v' = A over B
+let joinedBase = null;                       // base fit boxes from normalizeJoined (unzoomed px in view space)
 let soloBase = 'A';                           // which image (A or B) is shown at rest in Solo mode
 let zoom = 1, panX = 0, panY = 0;           // current zoom factor and pan offset (in CSS px, pre-zoom)
 let isDragging = false, isPanning = false;   // gesture flags: slider handle drag vs. canvas pan
@@ -2738,9 +2737,8 @@ function setViewMode(m) {
   joinedLayoutGroup.style.display = isJoined ? 'flex' : 'none';
   zoomGroup.style.display = 'flex';
   playGroup.style.display = isSplit ? 'flex' : 'none';
-  fullscreenBtn.style.display = (isSplit || isSolo) ? 'inline-flex' : 'none';
+  fullscreenBtn.style.display = 'inline-flex';
   captureBtn.style.display = 'inline-flex';
-  dividerCapWrap.style.display = isSplit ? 'inline-flex' : 'none';
   soloBaseBtn.style.display = isSolo ? 'inline-flex' : 'none';
   joinedControls.style.display = (isJoined || isDiff) ? 'flex' : 'none';
 
@@ -3008,11 +3006,12 @@ slider.addEventListener('pointerdown', e => {
  * Begin a pan gesture on the active container: capture the start point + current
  * pan, add the grabbing cursor, and take pointer capture so the drag continues
  * even if the pointer leaves the element. Ungated — panning works at any zoom,
- * in every mode (split, side, combine, diff, solo).
+ * in every mode (split, joined, diff, solo). Deliberately does NOT stop the
+ * autoplay sweep: pan offsets and the slider position are independent, so the
+ * sweep keeps gliding while the user pans.
  * @param {PointerEvent} e
  */
 function beginPan(e) {
-  stopAnimation();
   isPanning = true;
   panStartX = e.clientX; panStartY = e.clientY;
   panStartPanX = panX; panStartPanY = panY;
@@ -3039,9 +3038,8 @@ function startSoloReveal(e) {
 
 /**
  * Single global pointerdown handler for the stage. We ignore the upload screen,
- * buttons (e.g. the in-view Full Screen toggle — panning would capture the
- * pointer and the click would never reach the button), the result Download
- * button, and anything inside the slider handle. For Solo mode we start a
+ * anything inside a button (so clicks reach their control instead of starting
+ * a pan), and anything inside the slider handle. For Solo mode we start a
  * reveal; otherwise we begin panning. This replaced the old per-container
  * handlers so pan/zoom behavior is identical across all modes.
  */
@@ -3149,15 +3147,33 @@ slider.addEventListener('keydown', e => {
 /* ============ Zoom & Pan (from compare-image) ============ */
 /**
  * Apply the current zoom + pan to every image element in all view modes.
- * The transform is `translate(-50%,-50%)` to center the image, then
- * `scale(zoom)` and finally `translate(panX,panY)` in pre-zoom px. Calling
- * updateZoomUI() keeps the preset buttons + numeric input in sync.
+ * Split/solo/diff images stay centered on the view center and share the plain
+ * `translate(-50%,-50%) scale(zoom) translate(panX,panY)` transform. Joined is
+ * special: both images are re-anchored to `G + zoom*(C-G) + zoom*pan` (G =
+ * group center == view center, C = base center) so the pair scales rigidly
+ * about the group center — the shared edge and the gap scale with the zoom
+ * instead of overlapping (zoom-in) or splitting apart (zoom-out). Pan is baked
+ * into the anchor, so the joined transform carries scale only.
  * @credit transform approach from compare-image (tchung1970, MIT)
  */
 function updateTransform() {
-  [imgA, imgB, imgJ1, imgJ2, resultImage].forEach(img => {
+  [imgA, imgB, resultImage].forEach(img => {
     img.style.transform = `translate(-50%, -50%) scale(${zoom}) translate(${panX}px, ${panY}px)`;
   });
+  if (mode === 'joined' && joinedBase) {
+    const { c1x, c1y, c2x, c2y, gx, gy } = joinedBase;
+    const ox = zoom * panX, oy = zoom * panY;
+    imgJ1.style.left = (gx + zoom * (c1x - gx) + ox) + 'px';
+    imgJ1.style.top = (gy + zoom * (c1y - gy) + oy) + 'px';
+    imgJ2.style.left = (gx + zoom * (c2x - gx) + ox) + 'px';
+    imgJ2.style.top = (gy + zoom * (c2y - gy) + oy) + 'px';
+    imgJ1.style.transform = `translate(-50%, -50%) scale(${zoom})`;
+    imgJ2.style.transform = `translate(-50%, -50%) scale(${zoom})`;
+  } else {
+    [imgJ1, imgJ2].forEach(img => {
+      img.style.transform = `translate(-50%, -50%) scale(${zoom}) translate(${panX}px, ${panY}px)`;
+    });
+  }
   if (mode === 'joined') positionJoinedTags();
   updateZoomUI();
 }
@@ -3187,7 +3203,7 @@ zoomInput.addEventListener('keydown', e => {
 zoomInput.addEventListener('blur', applyZoomInput);
 /** Reset button: clear zoom/pan and recenter the slider — or, in Solo mode,
  *  restore the base image full-frame instead of a half wipe. */
-resetBtn.addEventListener('click', () => { zoom = 1; panX = 0; panY = 0; sliderPos = 0.5; updateTransform(); if (mode === 'solo') soloShowBase(); else setSplit(50); });
+resetBtn.addEventListener('click', () => { stopAnimation(); zoom = 1; panX = 0; panY = 0; sliderPos = 0.5; updateTransform(); if (mode === 'solo') soloShowBase(); else setSplit(50); });
 
 /**
  * Background for the joined pair: transparent when requested and the export
@@ -3236,6 +3252,13 @@ function normalizeJoined() {
   imgJ1.style.width = wA + 'px'; imgJ1.style.height = hA + 'px';
   imgJ2.style.left = (xB + wB / 2) + 'px'; imgJ2.style.top = (yB + hB / 2) + 'px';
   imgJ2.style.width = wB + 'px'; imgJ2.style.height = hB + 'px';
+  // Unzoomed rigid-unit description for updateTransform(): base centers plus the
+  // group center (which normalizeJoined centers on the view, so zoom scales the
+  // pair rigidly about the view center and the shared edge can never separate).
+  joinedBase = {
+    c1x: xA + wA / 2, c1y: yA + hA / 2, c2x: xB + wB / 2, c2y: yB + hB / 2,
+    gx: (xA + xB + wB) / 2, gy: (yA + yB + hB) / 2,
+  };
   const fs = parseInt(fontSize.value), lp = Math.max(fs * 1.2, 30);
   tagA.style.fontSize = fs + 'px'; tagA.style.color = labelColor.value;
   tagB.style.fontSize = fs + 'px'; tagB.style.color = labelColor.value;
@@ -3244,17 +3267,18 @@ function normalizeJoined() {
 }
 /**
  * Pin the Joined Before/After tags to the transformed image boxes. updateTransform()
- * centers each image on its (left,top) and then scales + pans it, so the tag
- * (untransformed, CSS-centered on its own left) goes at the transformed center-x
- * and the transformed top edge plus a small label offset.
+ * already anchored each image center (rigid zoom + pan baked into left/top), so
+ * the tag — untransformed, CSS-centered on its own left — goes at the stored
+ * center-x and the transformed top edge minus half the zoomed height plus a
+ * small fixed (unscaled) label offset.
  */
 function positionJoinedTags() {
   const place = (tag, im) => {
     const L = parseFloat(im.style.left), T = parseFloat(im.style.top);
-    const W = parseFloat(im.style.width), H = parseFloat(im.style.height);
-    if (![L, T, W, H].every(isFinite)) return;
-    tag.style.left = (L + zoom * panX) + 'px';
-    tag.style.top = (T + zoom * panY - (zoom * H) / 2 + Math.max(4, (parseFloat(tag.dataset.lp) || 30) * 0.35)) + 'px';
+    const H = parseFloat(im.style.height);
+    if (![L, T, H].every(isFinite)) return;
+    tag.style.left = L + 'px';
+    tag.style.top = (T - (zoom * H) / 2 + Math.max(4, (parseFloat(tag.dataset.lp) || 30) * 0.35)) + 'px';
   };
   place(tagA, imgJ1); place(tagB, imgJ2);
 }
@@ -3280,20 +3304,21 @@ function normalizeSplit() {
 }
 
 /* ============ Fullscreen ============ */
-/** Toggle fullscreen on the split container (so the compare view fills the screen). */
+/** Toggle fullscreen on the whole page (every view mode fills the screen; the
+ *  header stays visible so the toggle can also exit; Esc exits natively). */
 function toggleFullscreen() {
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-  else compareView.requestFullscreen().catch(() => showToast('Fullscreen blocked by browser', 'error'));
+  else document.documentElement.requestFullscreen().catch(() => showToast('Fullscreen blocked by browser', 'error'));
 }
 fullscreenBtn.addEventListener('click', toggleFullscreen);
-fullscreenBtn2.addEventListener('click', toggleFullscreen);
 
 /* ============ Autoplay animation (from image-swipe-compare) ============ */
 /**
- * Update the "Speed Ns" label as the user drags the speed slider.
+ * Update the "Speed N×" label as the user drags the speed slider (factor, not
+ * seconds: 1× == one pass per 2.5s, 2× twice as fast, 0.5× half speed).
  * @credit autoplay sweep from image-swipe-compare (hhkaos, MIT)
  */
-function updateSpeedLabel() { speedValue.textContent = `${Number(speedInput.value).toFixed(1)}s`; }
+function updateSpeedLabel() { speedValue.textContent = `${Number(speedInput.value).toFixed(2)}×`; }
 speedInput.addEventListener('input', updateSpeedLabel);
 /**
  * Per-frame callback for the autoplay sweep. Drives a sine wave between 0% and
@@ -3303,7 +3328,7 @@ speedInput.addEventListener('input', updateSpeedLabel);
  */
 function animationStep(ts) {
   if (animationFrameId === null) return;
-  const omega = Math.PI / Number(speedInput.value);
+  const omega = Math.PI * Number(speedInput.value) / 2.5;
   const elapsed = (ts - animationStartTime) / 1000;
   const s = 50 + 50 * Math.sin(omega * elapsed + animationPhase);
   if (sliderMode === 'diagonal-slash') { handleX = s / 100; handleY = s / 100; sliderPos = s / 100; applySplit(); }
@@ -3312,14 +3337,19 @@ function animationStep(ts) {
   animationFrameId = requestAnimationFrame(animationStep);
 }
 /**
- * Stop the autoplay sweep (if running) and reset the button label to "Play".
+ * Stop the autoplay sweep (if running) and restore the green Play glyph.
  */
 function stopAnimation() {
-  if (animationFrameId !== null) { cancelAnimationFrame(animationFrameId); animationFrameId = null; animateToggleBtn.textContent = 'Play'; }
+  if (animationFrameId !== null) { cancelAnimationFrame(animationFrameId); animationFrameId = null; }
+  animateToggleBtn.textContent = '▶';
+  animateToggleBtn.dataset.state = 'play';
+  animateToggleBtn.title = 'Play auto-sweep';
+  animateToggleBtn.setAttribute('aria-label', 'Play auto-sweep');
 }
 /**
- * Start the autoplay sweep. Captures the current slider position as the sine
- * phase (via asin) so the animation resumes smoothly rather than snapping.
+ * Start the autoplay sweep (red ⏹ while running). Captures the current slider
+ * position as the sine phase (via asin) so the animation resumes smoothly
+ * rather than snapping.
  */
 function startAnimation() {
   if (animationFrameId !== null) return;
@@ -3327,7 +3357,10 @@ function startAnimation() {
   animationPhase = Math.asin(clamp((cur - 50) / 50, -1, 1));
   animationStartTime = performance.now();
   animationFrameId = requestAnimationFrame(animationStep);
-  animateToggleBtn.textContent = 'Stop';
+  animateToggleBtn.textContent = '⏹';
+  animateToggleBtn.dataset.state = 'stop';
+  animateToggleBtn.title = 'Stop auto-sweep';
+  animateToggleBtn.setAttribute('aria-label', 'Stop auto-sweep');
 }
 animateToggleBtn.addEventListener('click', () => { animationFrameId === null ? startAnimation() : stopAnimation(); });
 
@@ -3366,13 +3399,14 @@ function drawContain(ctx, img, x, y, w, h) {
   ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
 }
 /**
- * Capture the current view. Split/Solo: WYSIWYG PNG from the live layout
+ * Capture the current view. Split: WYSIWYG PNG from the live layout
  * (zoom/pan included) — boxes come from getBoundingClientRect so the capture
  * cannot drift from the viewport; cropped to the visible union. The split
- * divider line is burned in only when the Divider checkbox is on (off by
- * default, keeping pixel-exact exports). Joined: exports the joined strip at
- * natural scale (same layout as the preview). Diff: downloads the current
- * diff result.
+ * divider is always burned in as a 2 CSS-px band in complementary color
+ * (per-pixel channel inversion of the touching content, opposite side per
+ * half-band; solo has no seam so nothing is drawn). Joined: exports the
+ * joined strip at natural scale (same layout as the preview). Diff: downloads
+ * the current diff result.
  * @credit capture approach from compare-image (tchung1970, MIT)
  */
 function captureComparison() {
@@ -3431,30 +3465,96 @@ function captureComparison() {
     traceClip(getLeftClipPoints());
     drawContain(ctx, imgA, boxA.x, boxA.y, boxA.w, boxA.h);
     ctx.restore();
-    // Optional burn-in of the visible split divider (same geometry as the
-    // on-screen divider line; the slider handle itself is never drawn).
-    if (dividerCapture.checked) {
-      ctx.save();
-      ctx.fillStyle = getComputedStyle(dividerLine).backgroundColor;
-      if (sliderMode === 'vertical') {
-        const x = handleX * arect.width;
-        ctx.fillRect(x - 1, 0, 2, arect.height);
-      } else if (sliderMode === 'horizontal') {
-        const y = handleY * arect.height;
-        ctx.fillRect(0, y - 1, arect.width, 2);
-      } else {
-        const hx = handleX * arect.width, hy = handleY * arect.height;
-        const rot = sliderMode === 'diagonal-slash'
-          ? Math.atan2(arect.width, arect.height)
-          : Math.atan2(arect.width, -arect.height);
-        const len = Math.hypot(arect.width, arect.height) * 1.2;
-        ctx.translate(hx, hy); ctx.rotate(rot); ctx.fillRect(-1, -len / 2, 2, len);
-      }
-      ctx.restore();
-    }
+    // Always-on burn-in of the visible split divider (solo has no seam, so it
+    // is skipped there; the slider handle itself is never drawn). The band is
+    // 2 CSS px wide and each pixel is the channel-inverse (255−v) of the
+    // touching content on its own side, so it stays visible on any image.
+    if (mode === 'split') burnComplementaryDivider(ctx, canvas.width, canvas.height, dpr, arect, cx0, cy0);
   }
 
   canvas.toBlob(blob => { if (blob) downloadBlob(blob, `compare-${mode}.png`); }, 'image/png');
+}
+/**
+ * Paint the 2-CSS-px split divider into an already-rendered capture using the
+ * complementary color of the touching pixels. Each half of the band samples
+ * the content just outside the band on its own side (vertical: left/right
+ * columns; horizontal: top/bottom rows; diagonals: nearest unmasked pixel
+ * along the band normal per side) and inverts each channel (255−v, alpha 255).
+ * Works in device px (dpr-aware); coordinates are container-space via the
+ * (cx0, cy0) crop origin. Out-of-canvas neighbors fall back to the opposite
+ * side, then to white.
+ * @param {CanvasRenderingContext2D} ctx - capture context (image already drawn)
+ * @param {number} W - canvas width in device px
+ * @param {number} H - canvas height in device px
+ * @param {number} dpr - device pixel ratio used for the capture
+ * @param {DOMRect} arect - compare-container rect (container == CSS px space)
+ * @param {number} cx0 - crop left in container px
+ * @param {number} cy0 - crop top in container px
+ */
+function burnComplementaryDivider(ctx, W, H, dpr, arect, cx0, cy0) {
+  if (!(W > 0 && H > 0)) return;
+  let img;
+  try { img = ctx.getImageData(0, 0, W, H); } catch (e) { return; }
+  const data = img.data, src = new Uint8ClampedArray(data);
+  const at = (x, y) => {
+    x = Math.min(W - 1, Math.max(0, x)); y = Math.min(H - 1, Math.max(0, y));
+    const k = (y * W + x) * 4;
+    return [src[k], src[k + 1], src[k + 2]];
+  };
+  const setInv = (x, y, rgb) => {
+    const k = (y * W + x) * 4;
+    data[k] = 255 - rgb[0]; data[k + 1] = 255 - rgb[1]; data[k + 2] = 255 - rgb[2]; data[k + 3] = 255;
+  };
+  if (sliderMode === 'vertical') {
+    const xc = handleX * arect.width;
+    const dl = Math.round((xc - 1 - cx0) * dpr), dr = dl + Math.max(1, Math.round(2 * dpr));
+    const lCol = Math.min(W - 1, Math.max(0, dl - 1)), rCol = Math.min(W - 1, Math.max(0, dr));
+    for (let j = 0; j < H; j++) {
+      const lRGB = at(lCol, j), rRGB = at(rCol, j);
+      for (let i = Math.max(0, dl); i < Math.min(W, dr); i++) {
+        setInv(i, j, (i - dl) < (dr - dl) / 2 ? lRGB : rRGB);
+      }
+    }
+  } else if (sliderMode === 'horizontal') {
+    const yc = handleY * arect.height;
+    const dt = Math.round((yc - 1 - cy0) * dpr), db = dt + Math.max(1, Math.round(2 * dpr));
+    const tRow = Math.min(H - 1, Math.max(0, dt - 1)), bRow = Math.min(H - 1, Math.max(0, db));
+    for (let i = 0; i < W; i++) {
+      const tRGB = at(i, tRow), bRGB = at(i, bRow);
+      for (let j = Math.max(0, dt); j < Math.min(H, db); j++) {
+        setInv(i, j, (j - dt) < (db - dt) / 2 ? tRGB : bRGB);
+      }
+    }
+  } else {
+    const hx = handleX * arect.width, hy = handleY * arect.height;
+    const hw = Math.hypot(arect.width, arect.height) || 1;
+    // Unit normal of the clip edge in container px (see updateDividerLine for the edge angles).
+    const nx = sliderMode === 'diagonal-slash' ? arect.height / hw : -arect.height / hw;
+    const ny = arect.width / hw;
+    const half = 1; // CSS px half-width of the 2px band
+    const dx = sliderMode === 'diagonal-slash' ? arect.width / hw : arect.width / hw;
+    const dy = sliderMode === 'diagonal-slash' ? -arect.height / hw : arect.height / hw;
+    const hl = Math.hypot(arect.width, arect.height) * 0.6 + 2;
+    const x0 = Math.max(0, Math.floor((Math.min(hx - Math.abs(dx) * hl, hx + Math.abs(dx) * hl) - half - 2 - cx0) * dpr));
+    const x1 = Math.min(W - 1, Math.ceil((Math.max(hx - Math.abs(dx) * hl, hx + Math.abs(dx) * hl) + half + 2 - cx0) * dpr));
+    const y0 = Math.max(0, Math.floor((Math.min(hy - Math.abs(dy) * hl, hy + Math.abs(dy) * hl) - half - 2 - cy0) * dpr));
+    const y1 = Math.min(H - 1, Math.ceil((Math.max(hy - Math.abs(dy) * hl, hy + Math.abs(dy) * hl) + half + 2 - cy0) * dpr));
+    for (let j = y0; j <= y1; j++) {
+      for (let i = x0; i <= x1; i++) {
+        const x = cx0 + (i + 0.5) / dpr, y = cy0 + (j + 0.5) / dpr;
+        const s = (x - hx) * nx + (y - hy) * ny;
+        if (Math.abs(s) >= half) continue;
+        const side = s < 0 ? -1 : 1;
+        // March outward along the normal to the first pixel outside the band.
+        const need = (half - Math.abs(s)) + 1.5 / dpr;
+        const sx = x + side * nx * need, sy = y + side * ny * need;
+        const px = Math.min(W - 1, Math.max(0, Math.round((sx - cx0) * dpr - 0.5)));
+        const py = Math.min(H - 1, Math.max(0, Math.round((sy - cy0) * dpr - 0.5)));
+        setInv(i, j, at(px, py));
+      }
+    }
+  }
+  ctx.putImageData(img, 0, 0);
 }
 captureBtn.addEventListener('click', captureComparison);
 /** Trigger a browser download for a Blob, then revoke its temporary URL. */

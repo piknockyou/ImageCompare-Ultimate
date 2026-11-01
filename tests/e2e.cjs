@@ -333,25 +333,29 @@ async function main() {
   const rv = await captureCase('vertical', 65);
   check('capture==viewport vertical@65%', rv.bad === 0 && rv.transparentWrong === 0 && rv.dimMatch, `bad=${rv.bad} tWrong=${rv.transparentWrong}`);
 
-  // ================= 6b. UI batch: divider checkbox, 1000% zoom, theme icon, download hover ===
+  // ================= 6b. UI batch: icon buttons, divider, speed factor, autoplay-during-pan ===
   await page.evaluate(() => {
     document.querySelector('#sliderModeGroup button[data-mode="vertical"]').click();
     setSplit(50);
-    document.getElementById('dividerCapture').checked = true;
   });
   const rDiv = await captureCase('vertical', 50);
-  const seamPx = await page.evaluate(async ({ cap }) => {
+  const seamAdj = await page.evaluate(async ({ cap }) => {
     const bmp = await createImageBitmap(new Blob([new Uint8Array(cap)]));
     const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
     const g = c.getContext('2d'); g.drawImage(bmp, 0, 0);
     const d = g.getImageData(0, 0, c.width, c.height).data;
-    const k = ((Math.floor(c.height / 2) * c.width) + Math.floor(c.width / 2)) * 4;
-    return [d[k], d[k+1], d[k+2]];
+    const row = Math.floor(c.height / 2);
+    const isCyan = k => d[k] < 80 && d[k+1] > 170 && d[k+2] > 170;
+    const isYel = k => d[k] > 170 && d[k+1] > 170 && d[k+2] < 80;
+    let found = false;
+    for (let i = 0; i < c.width - 1; i++) {
+      if (isCyan((row * c.width + i) * 4) && isYel((row * c.width + i + 1) * 4)) { found = true; break; }
+    }
+    return { found, w: c.width, h: c.height };
   }, { cap: rDiv.capBytes });
-  check('divider checkbox burns seam into capture',
-    rDiv.dimMatch && seamPx.every(v => v >= 200),
-    `seam=${seamPx} size=${rDiv.cw}x${rDiv.ch}`);
-  await page.evaluate(() => { document.getElementById('dividerCapture').checked = false; });
+  check('capture divider always on with complementary colors (cyan|yellow)',
+    rDiv.dimMatch && seamAdj.found,
+    `found=${seamAdj.found} size=${seamAdj.w}x${seamAdj.h}`);
 
   await page.click('.zoom-preset[data-zoom="10"]');
   check('1000% zoom preset selectable',
@@ -369,15 +373,41 @@ async function main() {
     `icon=${iconBefore}->${themeAfter.icon} theme=${themeAfter.theme}`);
   await page.click('#themeBtn'); // restore dark default
 
-  check('divider label names capture',
-    (await page.evaluate(() => document.getElementById('dividerCapWrap').textContent)).toLowerCase().includes('capture'));
-  check('icon buttons are square with labels',
+  check('header buttons are square icons (play/capture/fullscreen/reset/close)',
     await page.evaluate(() => {
-      const r = document.getElementById('resetBtn'), b = document.getElementById('backBtn');
-      return r.textContent === '↺' && b.textContent === '✕' &&
-        r.offsetWidth === r.offsetHeight && b.offsetWidth === b.offsetHeight &&
-        !!r.getAttribute('aria-label') && !!b.getAttribute('aria-label');
+      const ids = ['animateToggleBtn', 'captureBtn', 'fullscreenBtn', 'resetBtn', 'backBtn'];
+      return ids.every(id => {
+        const el = document.getElementById(id);
+        return el && el.offsetWidth === el.offsetHeight && !!el.getAttribute('aria-label');
+      });
+    }),
+    await page.evaluate(() => ['animateToggleBtn', 'captureBtn', 'fullscreenBtn'].map(id => document.getElementById(id).textContent).join(' ')));
+  check('play/capture/fullscreen glyphs',
+    await page.evaluate(() =>
+      document.getElementById('animateToggleBtn').textContent === '▶' &&
+      document.getElementById('captureBtn').textContent === '📷' &&
+      document.getElementById('fullscreenBtn').textContent === '⛶'));
+  check('speed is a factor (x) with 0.25-4 range',
+    await page.evaluate(() => {
+      const inp = document.getElementById('speedInput');
+      return document.getElementById('speedValue').textContent.endsWith('×') &&
+        inp.min === '0.25' && inp.max === '4' && inp.value === '1';
     }));
+  check('transparent background is the default',
+    await page.evaluate(() => document.getElementById('transparentBg').checked === true));
+  // autoplay keeps running across a pan drag (regression: pan used to stop it)
+  await page.click('#animateToggleBtn');
+  await page.waitForTimeout(300);
+  const st = await page.evaluate(() => { const r = document.getElementById('stage').getBoundingClientRect(); return { x: r.left + r.width * 0.22, y: r.top + r.height * 0.5 }; });
+  await page.mouse.move(st.x, st.y);
+  await page.mouse.down();
+  await page.mouse.move(st.x + 120, st.y + 60, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(200);
+  check('autoplay sweep survives panning',
+    await page.evaluate(() => document.getElementById('animateToggleBtn').dataset.state === 'stop'));
+  await page.click('#animateToggleBtn'); // stop the sweep for deterministic later captures
+  await page.evaluate(() => { panX = 0; panY = 0; updateTransform(); });
 
   // ================= 6c. Joined view: locked layout + export =================
   await page.click('#joinedBtn');
@@ -393,6 +423,26 @@ async function main() {
     Math.abs(jh.ah - jh.bh) < 1.5 && Math.abs(jh.bx - (jh.ax + jh.aw)) < 1.5 &&
     Math.abs((jh.ax + jh.bx + jh.bw) / 2 - jh.vw / 2) < 2,
     `h=${jh.ah.toFixed(1)}/${jh.bh.toFixed(1)} a@${jh.ax.toFixed(1)}+${jh.aw.toFixed(1)} b@${jh.bx.toFixed(1)}+${jh.bw.toFixed(1)} view=${jh.vw.toFixed(0)}x${jh.vh.toFixed(0)} nat=${jh.natA}/${jh.natB}`);
+  // rigid-unit zoom: shared edge must stay glued at 400% and 50% (no overblend, no gap)
+  async function joinedSeam() {
+    return page.evaluate(() => {
+      const a = document.getElementById('imgJ1').getBoundingClientRect();
+      const b = document.getElementById('imgJ2').getBoundingClientRect();
+      return (b.left - (a.left + a.width)) / zoom;
+    });
+  }
+  await page.click('.zoom-preset[data-zoom="4"]');
+  await page.waitForTimeout(200);
+  const seam4 = await joinedSeam();
+  await page.evaluate(() => { document.getElementById('zoomInput').value = '50'; document.getElementById('zoomInput').dispatchEvent(new Event('blur')); });
+  await page.evaluate(() => { document.getElementById('zoomInput').value = '50'; applyZoomInput(); });
+  await page.waitForTimeout(200);
+  const seamH = await joinedSeam();
+  await page.click('.zoom-preset[data-zoom="1"]');
+  await page.waitForTimeout(200);
+  check('joined shared edge glued at 400% and 50% zoom',
+    Math.abs(seam4) < 4 && Math.abs(seamH) < 4,
+    `seam400=${Number(seam4).toFixed(2)} seam50=${Number(seamH).toFixed(2)} (pre-zoom px)`);
   async function joinedExport(pg, probes) {
     await pg.evaluate(() => { window.__capDone = false; });
     await pg.click('#captureBtn');
@@ -436,6 +486,7 @@ async function main() {
     `w=${jv.aw.toFixed(1)}/${jv.bw.toFixed(1)} stack@${jv.by.toFixed(1)}`);
   await page.click('#joinedLayoutGroup button[data-layout="h"]');
   await page.evaluate(() => {
+    document.getElementById('transparentBg').checked = false;
     document.getElementById('gapControl').value = 10;
     document.getElementById('gapControl').dispatchEvent(new Event('input'));
   });
@@ -454,7 +505,8 @@ async function main() {
   check('joined transparent export keeps alpha',
     je.w === 270 && je.px[0][3] === 0, `gap=${je.px[0]}`);
   await page.evaluate(() => {
-    document.getElementById('transparentBg').checked = false;
+    document.getElementById('transparentBg').checked = true;
+    document.getElementById('transparentBg').dispatchEvent(new Event('change'));
     document.getElementById('gapControl').value = 0;
     document.getElementById('gapControl').dispatchEvent(new Event('input'));
   });
@@ -520,11 +572,13 @@ async function main() {
     check('fullscreen toggle (skipped: unsupported headless)', true, 'fullscreenEnabled=false');
   } else {
     await page.click('#fullscreenBtn');
-    await page.waitForFunction(() => document.fullscreenElement === document.getElementById('compareView'), null, { timeout: 5000 });
-    check('fullscreen enters on header button', true);
-    await page.click('#fullscreenBtn2'); // in-view button: must receive the click (no pan-capture swallow)
+    await page.waitForFunction(() => document.fullscreenElement === document.documentElement, null, { timeout: 5000 });
+    check('fullscreen enters on header button (whole page)', true);
+    await page.click('#fullscreenBtn'); // toggle off (Esc also exits natively)
     await page.waitForFunction(() => document.fullscreenElement === null, null, { timeout: 5000 });
-    check('fullscreen exits on in-view button', true);
+    check('fullscreen exits on header toggle', true);
+    check('no in-preview fullscreen button remains',
+      await page.evaluate(() => !document.getElementById('fullscreenBtn2')));
   }
   // ================= 9. real samples, diagonal + drag (pan) =================
   const page3 = await browser.newPage({ viewport: { width: 1280, height: 800 } });

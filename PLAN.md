@@ -107,6 +107,9 @@
 
 ### 2.7 UI batch: divider-in-capture, solid Download hover, moon/sun theme, 1000% zoom
 
+> Note (superseded by §2.9): the divider checkbox from item 1 below was removed —
+> split capture now always burns a 2px complementary-color divider.
+
 Goal (user intent): (a) optional divider line burned into captured PNGs;
 (b) `Download` (and `Compare`) hover state solid, not translucent; (c) theme
 toggle shows moon/sun icon instead of the word "Theme"; (d) 1000% zoom preset.
@@ -217,6 +220,71 @@ Code-level plan (all in `ImageCompare-Ultimate.html` unless noted):
 11. **Docs**: README view toggles + Combine/Side bullets → Joined (H/V,
     locked, gap 0 default, transparent bg, labels, export); capture bullet =
     all modes incl. joined/diff/solo; header FEATURE MAP comment updated.
+
+Verification: `node --check` on extracted scripts + full `tests/e2e.cjs`,
+must be ALL PASS.
+
+### 2.9 Icon buttons, autoplay-during-pan, speed factor, joined zoom lock, always-on adaptive divider
+
+Goal (user intent): square icon buttons everywhere (green ▶ / red ⏹ play-stop,
+📷 capture, ⛶ fullscreen); no in-preview fullscreen button (Esc exits); autoplay
+keeps running while panning; sweep speed as a factor (×) not seconds; joined
+shared edge stays glued at any zoom; transparent default on; format dropdown
+readable in dark mode; split capture always burns a 2px complementary-color
+divider sampled from touching pixels (checkbox removed); plus general sweep.
+
+Code-level plan (all in `ImageCompare-Ultimate.html`, plus `tests/`, `README.md`):
+
+1. **Icon buttons (CSS + header DOM)**
+   - `.btn.icon-btn` stays the square rule (34×34); add
+     `#animateToggleBtn[data-state="play"]{color:#22c55e}` /
+     `[data-state="stop"]{color:#ef4444}` so Play ▶ is green, Stop ⏹ is red.
+   - `select option` gets `background:var(--panel-solid);color:var(--text)` and
+     both `:root` themes declare `color-scheme` (dark/light) so native widgets
+     (select popup, color, checkbox) follow the theme — fixes white dropdown.
+2. **Header**: `#animateToggleBtn` → `class="btn icon-btn"` glyph `▶`
+   `data-state="play"`; `#fullscreenBtn` → `icon-btn` glyph `⛶`;
+   `#captureBtn` → `icon-btn` glyph `📷`; divider pill (`#dividerCapWrap` +
+   `#dividerCapture`) deleted; `#transparentBg` gets `checked`;
+   speed slider → `min 0.25 max 4 step 0.25 value 1`, label `1.0×`.
+3. **Fullscreen**: delete `#fullscreenBtn2` button + `.fullscreen-btn` CSS +
+   `compareView:fullscreen` rule (→ `.stage:fullscreen`); `toggleFullscreen`
+   targets `#stage` so it works in every mode; header button always visible.
+   `setViewMode` no longer toggles `fullscreenBtn`/`dividerCapWrap` display.
+   Stage `pointerdown` button-guard stays (slider handle still handled).
+4. **Autoplay**: `beginPan` no longer calls `stopAnimation()` (pan + sweep are
+   independent: sweep drives slider, pan drives offset); slider-handle drag,
+   keyboard slider moves, mode switches, Reset/Close still stop. Speed:
+   `updateSpeedLabel` → `${factor.toFixed(2)}×`; `animationStep` uses
+   `omega = Math.PI * factor / 2.5` (1× == old 2.5s pace). Button shows glyph +
+   `data-state`, title/aria (`Play auto-sweep` / `Stop auto-sweep`).
+5. **Joined rigid zoom**: root cause — each image scaled about its OWN center,
+   so zoom-in overlaps the shared edge and zoom-out opens a gap. Fix: keep the
+   base fit boxes from `normalizeJoined` in `joinedBase` (centers, sizes, group
+   center == view center); `updateTransform` in joined mode re-anchors each
+   image center to `G + zoom*(C-G) + zoom*pan` (gap scales with zoom, edges
+   stay glued) with transform `translate(-50%,-50%) scale(zoom)` (pan baked
+   into the anchor, not a second translate). `positionJoinedTags` reads the
+   already-anchored centers (no double pan). Wheel math unchanged (same form
+   about G == view center).
+6. **Capture divider (always on, complementary)**: delete `dividerCapture` const
+   + checkbox branch; split capture always draws a 2 CSS-px divider (skipped in
+   solo — no seam at rest). Color: per-pixel complement (255−v) of the touching
+   content — left column(s) sample the pixel just left of the band, right
+   column(s) just right (horizontal: top/bottom analog); diagonals march along
+   the band normal to the nearest unmasked pixel per side, then invert. Works
+   in device px (dpr-aware), clamped at canvas edges. Rationale: channel
+   inversion is the maximum-contrast opposite on any content (gray→gray-safe,
+   unlike hue rotation which can keep luminance).
+7. **Tests** (`tests/e2e.cjs`): drop Btn2/divider-checkbox refs; new asserts —
+   header buttons square with glyphs `▶ 📷 ⛶`; play keeps `data-state="stop"`
+   across a stage drag; speed label ends with `×`; transparent checked by
+   default; fullscreen enters on header with `fullscreenElement === stage`;
+   split capture center columns equal complements of neighbors (solids:
+   cyan/yellow); joined shared edge glued at 400% and 50% zoom.
+8. **Docs**: README features/controls updated (icons, × speed, rigid joined,
+   always-on divider, transparent default); §2.7 divider-checkbox item marked
+   superseded by this section.
 
 Verification: `node --check` on extracted scripts + full `tests/e2e.cjs`,
 must be ALL PASS.

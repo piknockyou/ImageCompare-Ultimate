@@ -17,9 +17,9 @@ capture export.
 - **4 view modes**
   - **Split** — slider wipe between the two images, with 4 orientations:
     vertical `|`, horizontal `—`, diagonal `/` and diagonal `\`.
-  - **Joined** — A and B edge-to-edge as one locked unit (shared pan/zoom);
+  - **Joined** — A and B edge-to-edge as one locked unit (shared pan/zoom, rigid about the group center so the shared edge never overlaps or gaps at any zoom);
     horizontal `A | B` or vertical `A over B`; gap (default 0/snug),
-    background (or transparent), labels, export format/quality.
+    background (transparent by default), labels, export format/quality.
   - **Pixel Diff** — pixels that differ between A and B are highlighted red.
   - **Solo** — shows one image at rest; press-and-hold to reveal the other.
 - **Cursor-anchored zoom** — scroll wheel zooms toward the pointer; works in
@@ -28,10 +28,10 @@ capture export.
   handle is the only direct slider control).
 - **Diagonal divider** — the divider line is computed to be exactly collinear
   with the clip edge at any aspect ratio (`atan2` based, not a fixed 45°).
-- **Autoplay sweep** — animates the slider back and forth at an adjustable speed.
+- **Autoplay sweep** — animates the slider back and forth at an adjustable speed factor (keeps running while you pan).
 - **Keyboard accessible** — focus the slider and use arrow keys (Shift = larger
   steps).
-- **Fullscreen** and **Capture** (current view as PNG, in every mode; joined and
+- **Fullscreen** (⛶, every mode, Esc exits) and **Capture** (📷, current view as PNG in every mode; joined and
   diff export through the same Capture button, so no separate Download button).
 - **Moon/sun theme button** — square icon toggle in the header, persisted to
   `localStorage` under the key `ictheme`; square icon Reset and Close buttons.
@@ -45,9 +45,7 @@ capture export.
 - **Capture matches viewport** — WYSIWYG PNG: reproduces pan/zoom from the live
   layout, split line and division exactly as shown, including diagonals;
   cropped to the visible union; letterbox filled with viewport bg.
-  - **Divider burn-in (optional)** — the split-view `Divider in capture`
-  checkbox draws the visible divider line into captured PNGs; off by default
-  for pixel-exact exports.
+  - **Divider burn-in (always on)** — split captures always burn a 2px divider in the complementary color of the touching pixels (per side), so the seam stays visible on any image.
   - **Theme icon** — moon/sun toggle button instead of a text label.
 - **TIFF + broad formats** — `.tif/.tiff` decode in-page via vendored UTIF.js
   (MIT, Photopea, offline single-file); other extensions (HEIC/HEIF, AVIF, BMP,
@@ -73,8 +71,8 @@ capture export.
     - **Layout** (Joined only): A | B or A over B
    - **Slider mode** (Split only): vertical / diagonal `/` / diagonal `\` / horizontal
    - **Zoom**: presets (100%–1000%), a custom % input, or the mouse wheel
-   - **Play**: auto-sweep the slider (adjust speed with the slider)
-    - **Full Screen**, **Capture** (PNG), **theme**, **Reset**, **Close** (icon buttons)
+   - **Play** (▶ green / ⏹ red): auto-sweep the slider (speed factor ×, keeps running while panning)
+    - **Fullscreen** (⛶), **Capture** (📷), **theme**, **Reset**, **Close** (square icon buttons)
 
 > **Solo mode tip:** at rest it shows the "base" image (toggle with the
 > *Base: A/B* button). Press and hold on the image to peek at the other; drag
