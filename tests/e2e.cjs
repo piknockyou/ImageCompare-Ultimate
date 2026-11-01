@@ -614,6 +614,31 @@ async function main() {
     dragged.hash !== rest.hash && dragged.dimMatch && dragged.transparentWrong === 0 && dragged.bad / dragged.n < 0.10,
     `rest=${rest.hash} dragged=${dragged.hash} badFrac=${(dragged.bad / dragged.n).toFixed(3)} tWrong=${dragged.transparentWrong} mean=${dragged.mean.toFixed(2)} size=${dragged.cw}x${dragged.ch}`);
 
+  // ================= 10. no native-drag hijack: press on the clip wrapper
+  // (letterbox, the miss you get chasing the moving slider during autoplay) must
+  // pan 1:1 for the WHOLE press — a native dragstart used to fire pointercancel
+  // mid-gesture, leaving only a micro-pan and a dead press.
+  await page3.evaluate(() => {
+    window.__dragstarts = 0;
+    document.addEventListener('dragstart', () => { window.__dragstarts++; }, true);
+    document.querySelector('#sliderModeGroup button[data-mode="vertical"]').click();
+    setSplit(50); stopAnimation(); zoom = 1; panX = 0; panY = 0; updateTransform();
+  });
+  await page3.waitForTimeout(200);
+  const w0 = await page3.evaluate(() => {
+    const v = document.getElementById('compareView').getBoundingClientRect();
+    return { x: v.left + 10, y: v.top + v.height / 2 };
+  });
+  await page3.mouse.move(w0.x, w0.y);
+  await page3.mouse.down();
+  await page3.mouse.move(w0.x + 150, w0.y + 40, { steps: 10 });
+  await page3.mouse.up();
+  await page3.waitForTimeout(200);
+  const w1 = await page3.evaluate(() => ({ panX, panY, drag: isDragging, pan: isPanning, n: window.__dragstarts }));
+  check('wrapper/letterbox press pans fully, no native drag hijack',
+    Math.abs(w1.panX - 150) < 5 && Math.abs(w1.panY - 40) < 5 && w1.n === 0 && !w1.drag && !w1.pan,
+    `pan=${w1.panX.toFixed(1)},${w1.panY.toFixed(1)} dragstarts=${w1.n}`);
+
   await browser.close();
   console.log(failures === 0 ? 'ALL E2E PASS' : `${failures} FAILURES`);
   process.exit(failures === 0 ? 0 : 1);

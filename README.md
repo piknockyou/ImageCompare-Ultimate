@@ -24,7 +24,7 @@ capture export.
   - **Solo** — shows one image at rest; press-and-hold to reveal the other.
 - **Cursor-anchored zoom** — scroll wheel zooms toward the pointer; works in
   every mode at any zoom level.
-- **Drag-to-pan** — anywhere on the image pans it in every mode (the slider
+- **Drag-to-pan (never hijacked)** — anywhere on the image pans it in every mode (the slider
   handle is the only direct slider control).
 - **Diagonal divider** — the divider line is computed to be exactly collinear
   with the clip edge at any aspect ratio (`atan2` based, not a fixed 45°).

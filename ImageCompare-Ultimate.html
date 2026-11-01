@@ -152,7 +152,8 @@
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* ---------- Stage (view area) ---------- */
-  .stage { flex: 1; position: relative; overflow: hidden; min-height: 0; background: var(--viewport-bg); }
+  .stage { flex: 1; position: relative; overflow: hidden; min-height: 0; background: var(--viewport-bg);
+    user-select: none; -webkit-user-select: none; }
 
   .compare-container { position: absolute; inset: 0; display: none; overflow: hidden; }
   /* .pannable marks every view region that supports drag-to-pan. "grab"/"grabbing"
@@ -3043,6 +3044,17 @@ function startSoloReveal(e) {
  * reveal; otherwise we begin panning. This replaced the old per-container
  * handlers so pan/zoom behavior is identical across all modes.
  */
+/**
+ * Never let the browser start a NATIVE drag-and-drop from page content. A native
+ * drag fires pointercancel + lostpointercapture on the pressed element, which
+ * kills our pan/slider gesture mid-press: only the pixels before the drag
+ * threshold apply (a "micro pan") and the rest of that press is dead. This
+ * bit users grabbing around the moving slider during autoplay (presses landing
+ * on the clip wrappers/letterbox instead of image pixels). OS file drops for
+ * upload are unaffected: they fire dragenter/dragover/drop, never an in-page
+ * dragstart.
+ */
+document.addEventListener('dragstart', e => e.preventDefault());
 stage.addEventListener('pointerdown', e => {
   if (uploadScreen.style.display !== 'none') return;
   if (e.target.closest && e.target.closest('button')) return;

@@ -303,6 +303,26 @@ Applied: header-right = Capture (primary, first) → Zoom → Play+speed
 sits adjacent to what it modifies). Capture gets the `primary` accent style
 as the single CTA; no JS/test changes needed (all wiring is id-based).
 
+### 2.11 Stuck/micro pan: native-drag hijack (root-caused via probe)
+
+Symptom (user report): after catching the moving slider during autoplay, later
+grabs sometimes pan only a few px ("micro pan") instead of moving the image —
+side-specific, intermittent.
+
+Probe (scratch Playwright script, since deleted): press on the clip wrapper
+(letterbox at view-left+10, the natural miss when chasing the moving handle),
+drag +150/+40. Result: pointerdown@splitClip → dragstart@splitClip →
+pointercancel → lostpointercapture; only +20/+0 of +150/+40 applied and the
+rest of the press dead (flags cleared by endGesture). The browser's native
+HTML5 drag took the gesture over: pointercancel kills our pan, remaining moves
+go to the DnD operation. `-webkit-user-drag:none` on imgs did not stop it
+because the drag originated on the wrapper div.
+
+Fix: document-level `dragstart → preventDefault()` (OS file-drop upload
+uses dragenter/dragover/drop, never in-page dragstart, so it is unaffected) +
+`user-select:none` on `.stage`. Regression test in §10 presses the
+wrapper and asserts 1:1 tracking with zero dragstarts.
+
 ## 3. Risks / open points (decided, not asked)
 
 - Auto-start fires also when the second image arrives long after the first — intended.
