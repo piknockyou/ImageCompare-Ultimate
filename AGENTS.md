@@ -24,6 +24,12 @@ Working rules for this repository. It describes the constraints that are easy to
 | `assets/` | images referenced by the README |
 | `samples/` | local-only teaser pair for the screenshot script |
 
+## Docs
+
+- One home per fact: the README tells the user what the tool does, this file tells agents the rules, `docs/` holds write-ups. Never restate a fact in two files — point at it instead. Short echoes are allowed only where the readers differ (README vs this file).
+- Cold-reader clean: every sentence must make sense to someone who never saw the work happen — no session memory, no change narration ("was moved", "used to be"), no announced omissions.
+- Counts, file trees, command lines and preset lists get re-verified against the implementation in the same change. Check doc changes against `@consolidate-patchwork` (one home, no duplication, frames match reality) and `@audit-cold-reader` (no echo of the making) before committing.
+
 ## Gates
 
 Run before every commit:

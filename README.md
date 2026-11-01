@@ -23,8 +23,8 @@ four view modes with cursor-anchored zoom, drag-to-pan, and a PNG capture export
   - **Solo** — shows one image at rest; press-and-hold to reveal the other.
 - **Cursor-anchored zoom** — scroll wheel zooms toward the pointer; works in
   every mode at any zoom level.
-- **Drag-to-pan (never hijacked)** — anywhere on the image pans it in every mode (the slider
-  handle is the only direct slider control).
+- **Drag-to-pan** — anywhere on the image pans it in every mode (the slider
+  handle is the only direct slider control); panning is never interrupted, including mid-sweep and over letterbox zones.
 - **Diagonal divider** — the divider line is computed to be exactly collinear
   with the clip edge at any aspect ratio (`atan2` based, not a fixed 45°).
 - **Autoplay sweep** — animates the slider back and forth at an adjustable speed factor (keeps running while you pan).
@@ -45,7 +45,6 @@ four view modes with cursor-anchored zoom, drag-to-pan, and a PNG capture export
   layout, split line and division exactly as shown, including diagonals;
   cropped to the visible union; letterbox filled with viewport bg.
   - **Divider burn-in (always on)** — split captures always burn a 2px divider in the complementary color of the touching pixels (per side), so the seam stays visible on any image.
-  - **Theme icon** — moon/sun toggle button instead of a text label.
 - **TIFF + broad formats** — `.tif/.tiff` decode in-page via vendored UTIF.js
   (MIT, Photopea, offline single-file); other extensions (HEIC/HEIF, AVIF, BMP,
   ICO, SVG, WebP, RAW) accepted when the browser can render them, with a clear
@@ -140,7 +139,7 @@ Why the tool behaves the way it does, where the reason is not obvious from the c
 ## Notes
 
 - No build step, no runtime dependencies, no internet required. The tool is `index.html` alone; everything else is development support.
-- The repository keeps no `node_modules`. Development borrows a globally installed Playwright (`bun add -g playwright`), located by `scripts/lib/playwright.cjs`; Chrome and `ffmpeg` are the other prerequisites.
+- The repository keeps no `node_modules`. Development borrows a globally installed Playwright (`bun add -g playwright`), located by `scripts/playwright.cjs`; Chrome and `ffmpeg` are the other prerequisites.
 - The code is heavily commented with per-function docstrings and `@credit` tags
   mapping each piece back to its source project.
 - Verified by `tests/e2e.cjs`: 38 assertions covering drop routing, auto-start, slot swaps, capture-vs-viewport in every slider mode, joined export, and the gesture regressions.
