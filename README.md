@@ -111,7 +111,9 @@ compare_images_in_browser/
 │   └── package.json
 ├── scripts/
 │   └── screenshot.cjs           # regenerates screenshot.jpg after a UI change
-└── samples/                     # two real photos used by the E2E photo cases (not versioned)
+└── samples/                     # not versioned
+    ├── teaser/                  # before.jpg / after.jpg that produce the README teaser
+    └── (photos)                 # two real photos used by the E2E photo cases
 ```
 
 ---
@@ -135,5 +137,5 @@ Why the tool behaves the way it does, where the reason is not obvious from the c
 - The code is heavily commented with per-function docstrings and `@credit` tags
   mapping each piece back to its source project.
 - Verified by `tests/e2e.cjs`: 38 assertions covering drop routing, auto-start, slot swaps, capture-vs-viewport in every slider mode, joined export, and the gesture regressions.
-- `screenshot.jpg` is the README teaser, square so the README shows more of the tool; regenerate it after a UI change with `node scripts/screenshot.cjs --viewport 1200x1200 --fit` (drop the teaser pair into `samples/teaser/` first, or pass two paths).
+- `screenshot.jpg` is the README teaser: a square stage, so the README shows the tool at full height. Regenerate it after a UI change with `node scripts/screenshot.cjs --square 1200`, which reads `samples/teaser/` (or takes two image paths). The teaser pair is kept locally, not versioned; the screenshot is.
 
