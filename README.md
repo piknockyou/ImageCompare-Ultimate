@@ -14,12 +14,12 @@ capture export.
 
 ## Features
 
-- **5 view modes**
+- **4 view modes**
   - **Split** — slider wipe between the two images, with 4 orientations:
     vertical `|`, horizontal `—`, diagonal `/` and diagonal `\`.
-  - **Side by Side** — both images shown at a shared size.
-  - **Combine** — A and B merged into one exportable image (side/stacked,
-    with gap, background color, labels, and format/quality controls).
+  - **Joined** — A and B edge-to-edge as one locked unit (shared pan/zoom);
+    horizontal `A | B` or vertical `A over B`; gap (default 0/snug),
+    background (or transparent), labels, export format/quality.
   - **Pixel Diff** — pixels that differ between A and B are highlighted red.
   - **Solo** — shows one image at rest; press-and-hold to reveal the other.
 - **Cursor-anchored zoom** — scroll wheel zooms toward the pointer; works in
@@ -31,9 +31,10 @@ capture export.
 - **Autoplay sweep** — animates the slider back and forth at an adjustable speed.
 - **Keyboard accessible** — focus the slider and use arrow keys (Shift = larger
   steps).
-- **Fullscreen** and **PNG capture** of the current split / side-by-side view.
-- **Dark / light theme** — toggle in the header, persisted to `localStorage`
-  under the key `ictheme`.
+- **Fullscreen** and **Capture** (current view as PNG, in every mode; joined and
+  diff export through the same Capture button, so no separate Download button).
+- **Moon/sun theme button** — square icon toggle in the header, persisted to
+  `localStorage` under the key `ictheme`; square icon Reset and Close buttons.
 - **Clipboard paste** — paste an image with Ctrl/Cmd+V onto a box or the page.
 - **Two-file drop anywhere** — dropping two images on one tile, the background,
   or the file picker fills A+B; location never matters.
@@ -44,8 +45,9 @@ capture export.
 - **Capture matches viewport** — WYSIWYG PNG: reproduces pan/zoom from the live
   layout, split line and division exactly as shown, including diagonals;
   cropped to the visible union; letterbox filled with viewport bg.
-  - **Divider burn-in (optional)** — the split-view `Divider` checkbox draws the
-  visible divider line into captured PNGs; off by default for pixel-exact exports.
+  - **Divider burn-in (optional)** — the split-view `Divider in capture`
+  checkbox draws the visible divider line into captured PNGs; off by default
+  for pixel-exact exports.
   - **Theme icon** — moon/sun toggle button instead of a text label.
 - **TIFF + broad formats** — `.tif/.tiff` decode in-page via vendored UTIF.js
   (MIT, Photopea, offline single-file); other extensions (HEIC/HEIF, AVIF, BMP,
@@ -67,11 +69,12 @@ capture export.
    - Ctrl/Cmd+V to paste from the clipboard.
 3. Click **Compare**.
 4. Use the header controls:
-   - **View toggles**: Split · Side by Side · Combine · Diff · Solo
+    - **View toggles**: Split · Joined · Diff · Solo
+    - **Layout** (Joined only): A | B or A over B
    - **Slider mode** (Split only): vertical / diagonal `/` / diagonal `\` / horizontal
    - **Zoom**: presets (100%–1000%), a custom % input, or the mouse wheel
    - **Play**: auto-sweep the slider (adjust speed with the slider)
-   - **Full Screen**, **Capture** (PNG), **Theme**, **Reset**, **Close**
+    - **Full Screen**, **Capture** (PNG), **theme**, **Reset**, **Close** (icon buttons)
 
 > **Solo mode tip:** at rest it shows the "base" image (toggle with the
 > *Base: A/B* button). Press and hold on the image to peek at the other; drag

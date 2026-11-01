@@ -233,9 +233,9 @@ async function main() {
       const capData = cx.getImageData(0, 0, cw, ch).data;
       // Reference crop from the LIVE layout (same union∩container math as the
       // implementation, so pan/zoom are honored): screenshot ground truth.
-      const area = mode === 'side' ? document.getElementById('sideBySide') : document.getElementById('compareView');
+      const area = document.getElementById('compareView');
       const view = area.getBoundingClientRect();
-      const refImgs = mode === 'side' ? [imgA2, imgB2] : [imgB, imgA];
+      const refImgs = [imgB, imgA];
       let ux = Infinity, uy = Infinity, umx = -Infinity, umy = -Infinity;
       for (const im of refImgs) {
         const r = im.getBoundingClientRect();
@@ -365,19 +365,122 @@ async function main() {
     theme: document.documentElement.getAttribute('data-theme') || 'dark',
   }));
   check('theme button shows moon/sun and toggles theme',
-    iconBefore === '☀' && themeAfter.icon === '☾' && themeAfter.theme === 'light',
+    iconBefore === '☀️' && themeAfter.icon === '🌙' && themeAfter.theme === 'light',
     `icon=${iconBefore}->${themeAfter.icon} theme=${themeAfter.theme}`);
   await page.click('#themeBtn'); // restore dark default
 
-  await page.click('#combineBtn');
-  await page.waitForFunction(() => !!document.getElementById('resultImage').getAttribute('src'), null, { timeout: 10000 });
-  await page.hover('#resultDownload');
-  await page.waitForTimeout(350); // let the 0.15s hover transition settle
-  const dlAlpha = await page.evaluate(() => {
-    const m = getComputedStyle(document.getElementById('resultDownload')).backgroundColor.match(/[\d.]+/g).map(Number);
-    return m.length === 4 ? m[3] : 1;
+  check('divider label names capture',
+    (await page.evaluate(() => document.getElementById('dividerCapWrap').textContent)).toLowerCase().includes('capture'));
+  check('icon buttons are square with labels',
+    await page.evaluate(() => {
+      const r = document.getElementById('resetBtn'), b = document.getElementById('backBtn');
+      return r.textContent === '↺' && b.textContent === '✕' &&
+        r.offsetWidth === r.offsetHeight && b.offsetWidth === b.offsetHeight &&
+        !!r.getAttribute('aria-label') && !!b.getAttribute('aria-label');
+    }));
+
+  // ================= 6c. Joined view: locked layout + export =================
+  await page.click('#joinedBtn');
+  await page.waitForTimeout(300);
+  const jh = await page.evaluate(() => {
+    const a = document.getElementById('imgJ1').getBoundingClientRect();
+    const b = document.getElementById('imgJ2').getBoundingClientRect();
+    const view = document.getElementById('joinedView').getBoundingClientRect();
+    return { ah: a.height, bh: b.height, ax: a.left, bx: b.left, bw: b.width, aw: a.width, vw: view.width, vh: view.height,
+      natA: [imgJ1.naturalWidth, imgJ1.naturalHeight], natB: [imgJ2.naturalWidth, imgJ2.naturalHeight] };
   });
-  check('download hover background is solid', dlAlpha === 1, `alpha=${dlAlpha}`);
+  check('joined H shares height and sits edge-to-edge, centered',
+    Math.abs(jh.ah - jh.bh) < 1.5 && Math.abs(jh.bx - (jh.ax + jh.aw)) < 1.5 &&
+    Math.abs((jh.ax + jh.bx + jh.bw) / 2 - jh.vw / 2) < 2,
+    `h=${jh.ah.toFixed(1)}/${jh.bh.toFixed(1)} a@${jh.ax.toFixed(1)}+${jh.aw.toFixed(1)} b@${jh.bx.toFixed(1)}+${jh.bw.toFixed(1)} view=${jh.vw.toFixed(0)}x${jh.vh.toFixed(0)} nat=${jh.natA}/${jh.natB}`);
+  async function joinedExport(pg, probes) {
+    await pg.evaluate(() => { window.__capDone = false; });
+    await pg.click('#captureBtn');
+    await pg.waitForFunction(() => window.__capDone, null, { timeout: 10000 });
+    const bytes = await pg.evaluate(() => Array.from(window.__capBuf));
+    return pg.evaluate(async ({ bytes, probes }) => {
+      const bmp = await createImageBitmap(new Blob([new Uint8Array(bytes)]));
+      const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
+      const g = c.getContext('2d'); g.drawImage(bmp, 0, 0);
+      const d = g.getImageData(0, 0, c.width, c.height).data;
+      const px = ([x, y]) => { const k = (y * c.width + x) * 4; return [d[k], d[k+1], d[k+2], d[k+3]]; };
+      return { w: c.width, h: c.height, px: probes.map(px) };
+    }, { bytes, probes });
+  }
+  // red 120x80 + blue 80x120, H: common height 120 -> A 180x120 at x0, B 80x120 at x180
+  let je = await joinedExport(page, [[10, 60], [220, 60]]);
+  check('joined H export: shared height, A left / B right',
+    je.w === 260 && je.h === 120 &&
+    je.px[0][0] > 200 && je.px[0][1] < 80 && je.px[0][2] < 80 &&
+    je.px[1][2] > 200 && je.px[1][0] < 80 && je.px[1][1] < 80,
+    `${je.w}x${je.h} A=${je.px[0]} B=${je.px[1]}`);
+  await page.click('#joinedLayoutGroup button[data-layout="v"]');
+  await page.waitForTimeout(300);
+  // V: common width 120 -> A 120x80 at y0, B 120x180 at y80
+  je = await joinedExport(page, [[60, 10], [60, 200]]);
+  check('joined V export: shared width, A over B',
+    je.w === 120 && je.h === 260 &&
+    je.px[0][0] > 200 && je.px[0][1] < 80 &&
+    je.px[1][2] > 200 && je.px[1][0] < 80,
+    `${je.w}x${je.h} A=${je.px[0]} B=${je.px[1]}`);
+  const jv = await page.evaluate(() => {
+    const a = document.getElementById('imgJ1').getBoundingClientRect();
+    const b = document.getElementById('imgJ2').getBoundingClientRect();
+    const view = document.getElementById('joinedView').getBoundingClientRect();
+    return { aw: a.width, bw: b.width, ax: a.left, bx: b.left, vw: view.width,
+      by: b.top, ay: a.top, ah: a.height };
+  });
+  check('joined V stacks centered',
+    Math.abs(jv.aw - jv.bw) < 1.5 && Math.abs(jv.by - (jv.ay + jv.ah)) < 1.5 &&
+    Math.abs((jv.ax + jv.bx + jv.bw) / 2 - jv.vw / 2) < 2,
+    `w=${jv.aw.toFixed(1)}/${jv.bw.toFixed(1)} stack@${jv.by.toFixed(1)}`);
+  await page.click('#joinedLayoutGroup button[data-layout="h"]');
+  await page.evaluate(() => {
+    document.getElementById('gapControl').value = 10;
+    document.getElementById('gapControl').dispatchEvent(new Event('input'));
+  });
+  await page.waitForTimeout(200);
+  // gap zone x in [180,190): background white by default
+  je = await joinedExport(page, [[185, 60]]);
+  check('joined gap separates by background color',
+    je.w === 270 && je.h === 120 && je.px[0][0] > 200 && je.px[0][1] > 200 && je.px[0][2] > 200,
+    `${je.w}x${je.h} gap=${je.px[0]}`);
+  await page.evaluate(() => {
+    document.getElementById('transparentBg').checked = true;
+    document.getElementById('transparentBg').dispatchEvent(new Event('change'));
+  });
+  await page.waitForTimeout(200);
+  je = await joinedExport(page, [[185, 60]]);
+  check('joined transparent export keeps alpha',
+    je.w === 270 && je.px[0][3] === 0, `gap=${je.px[0]}`);
+  await page.evaluate(() => {
+    document.getElementById('transparentBg').checked = false;
+    document.getElementById('gapControl').value = 0;
+    document.getElementById('gapControl').dispatchEvent(new Event('input'));
+  });
+
+  // ================= 6d. Solo reset + capture-everywhere =================
+  await page.click('#soloBtn');
+  await page.evaluate(() => setSplit(50)); // dirty the clip; reset must restore base
+  await page.click('#resetBtn');
+  const soloClip = await page.evaluate(() => document.getElementById('splitClip').style.clipPath);
+  const soloNums = (soloClip.match(/[\d.]+/g) || []).map(Number);
+  check('reset in solo restores the base view',
+    JSON.stringify(soloNums) === JSON.stringify([0, 0, 100, 0, 100, 100, 0, 100]),
+    `clip=${soloClip}`);
+  await page.evaluate(() => { window.__capDone = false; });
+  await page.click('#captureBtn');
+  await page.waitForFunction(() => window.__capDone, null, { timeout: 10000 });
+  check('capture works in solo mode',
+    (await page.evaluate(() => window.__capBuf.length)) > 1000);
+
+  await page.click('#diffBtn');
+  await page.waitForFunction(() => !!document.getElementById('resultImage').getAttribute('src'), null, { timeout: 10000 });
+  await page.evaluate(() => { window.__capDone = false; });
+  await page.click('#captureBtn');
+  await page.waitForFunction(() => window.__capDone, null, { timeout: 10000 });
+  check('capture downloads the diff result',
+    (await page.evaluate(() => window.__capBuf.length)) > 1000);
   await page.click('#splitBtn');
 
   // ================= 7. TIFF upload path =================
@@ -397,6 +500,19 @@ async function main() {
   await page2.waitForFunction(() => document.getElementById('uploadScreen').style.display === 'none', null, { timeout: 20000 });
   const t = await page2.evaluate(() => document.getElementById('infoTagA').textContent);
   check('TIFF drop decodes + auto-starts', t.includes('tif.tif') && t.includes('64×48'), t);
+
+  // ================= 8b. fullscreen toggle =================
+  // ================= 8a. primary-button hover is solid =================
+  const page4 = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await page4.goto(PAGE_URL);
+  await page4.hover('#compareBtn');
+  await page4.waitForTimeout(350); // let the 0.15s hover transition settle
+  check('primary button hover background is solid',
+    await page4.evaluate(() => {
+      const m = getComputedStyle(document.getElementById('compareBtn')).backgroundColor.match(/[\d.]+/g).map(Number);
+      return m.length === 4 ? m[3] === 1 : true;
+    }));
+  await page4.close();
 
   // ================= 8b. fullscreen toggle =================
   const fsEnabled = await page.evaluate(() => document.fullscreenEnabled);

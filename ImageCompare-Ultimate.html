@@ -28,13 +28,13 @@
   --------------------------------------------------------------------------
   FEATURE MAP
   --------------------------------------------------------------------------
-    5 view modes:  Split (vertical / diagonal / \, horizontal), Side-by-Side,
-                   Static Combine, Pixel Diff, Solo (press-hold to reveal).
-    Theme:         dark (default) + light toggle, persisted in localStorage
+    4 view modes:  Split, Joined, Pixel Diff, Solo (details below).
+                   (Joined replaces Side-by-Side + Combine: locked strip, H/V, gap, labels.)
+    Theme:         dark (default) + light moon/sun toggle, persisted in localStorage
                    under the key "ictheme".
     Interactions:  wheel-zoom anchored to cursor, drag-to-pan in every mode,
                    handle-only slider with free 2D diagonal dragging,
-                   capture current view to PNG, autoplay sweep animation.
+                   capture current view to PNG in every mode, autoplay sweep animation.
 
   Single deliverable: C:\Users\pikno\Desktop\Compare-Images\ImageCompare-Ultimate.html
   ============================================================================
@@ -133,6 +133,8 @@
   .btn.primary:hover { background: var(--accent-solid); color: #fff; border-color: var(--accent-solid); }
   .btn.close:hover { background: var(--danger); color: var(--danger-text); border-color: var(--danger); }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.icon-btn { width: 34px; height: 34px; padding: 0; font-size: 16px; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center; }
 
   .play-group { display: flex; align-items: center; gap: 8px; }
   .play-group label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
@@ -173,12 +175,15 @@
   .divider-line { position: absolute; background: rgba(255,255,255,0.9); box-shadow: 0 0 6px rgba(0,0,0,0.5);
     z-index: 12; pointer-events: none; transform: translate(-50%,-50%); display: none; }
 
-  .side-by-side { position: absolute; inset: 0; display: none; align-items: stretch; }
-  .side-by-side .panel { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center;
-    position: relative; overflow: hidden; }
-  .side-by-side .panel img { position: absolute; top: 50%; left: 50%; object-fit: contain; user-select: none; -webkit-user-drag: none;
+  /* Joined view: A and B as one locked strip. Both images share the single
+     global pan/zoom transform, so they can never drift apart. normalizeJoined()
+     positions them absolutely (centers computed in JS), edge-to-edge with the
+     gap control between them. */
+  .joined { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; overflow: hidden; }
+  .joined img { position: absolute; top: 50%; left: 50%; object-fit: contain; user-select: none; -webkit-user-drag: none;
     image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; image-rendering: pixelated; }
-  .side-by-side .divider { width: 2px; background: var(--border); align-self: stretch; }
+  .joined-tag { position: absolute; transform: translateX(-50%); pointer-events: none; user-select: none;
+    font-weight: 600; white-space: nowrap; z-index: 5; }
 
   .fullscreen-btn { position: absolute; top: 10px; right: 10px; z-index: 20; border: 1px solid var(--border);
     background: var(--panel); color: var(--text); border-radius: 8px; padding: 6px 11px; font: inherit;
@@ -196,19 +201,19 @@
     width: auto; height: auto; object-fit: contain; user-select: none; -webkit-user-drag: none;
     box-shadow: var(--shadow); border-radius: 8px; background: transparent;
     image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; image-rendering: pixelated; }
-  .result-panel #resultDownload { position: relative; z-index: 2; margin-top: auto; }
 
-  /* ---------- Combine / Diff controls ---------- */
-  .combine-controls { background: var(--panel); border-top: 1px solid var(--border); padding: 12px 16px;
+  /* ---------- Joined / Diff controls ---------- */
+  .joined-controls { background: var(--panel); border-top: 1px solid var(--border); padding: 12px 16px;
     display: none; flex-wrap: wrap; gap: 14px 22px; }
-  .combine-controls .ctl { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
-  .combine-controls .ctl label { font-weight: 600; color: var(--text); }
-  .combine-controls input[type=range] { width: 120px; }
-  .combine-controls input[type=color] { width: 34px; height: 28px; border: 1px solid var(--border); border-radius: 6px;
+  .joined-controls .ctl { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .joined-controls .ctl label { font-weight: 600; color: var(--text); }
+  .joined-controls input[type=range] { width: 120px; }
+  .joined-controls input[type=color] { width: 34px; height: 28px; border: 1px solid var(--border); border-radius: 6px;
     background: none; cursor: pointer; padding: 0; }
-  .combine-controls select { border: 1px solid var(--border); border-radius: 6px; background: var(--control-bg);
+  .joined-controls input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--accent-text); cursor: pointer; }
+  .joined-controls select { border: 1px solid var(--border); border-radius: 6px; background: var(--control-bg);
     color: var(--text); padding: 5px 8px; font: inherit; font-size: 13px; }
-  .combine-controls .val { min-width: 38px; color: var(--text); font-weight: 600; }
+  .joined-controls .val { min-width: 38px; color: var(--text); font-weight: 600; }
 
   /* ---------- Upload screen ---------- */
   .upload-screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
@@ -284,8 +289,7 @@
       <div class="logo">ImageCompare</div>
       <div class="seg" id="viewToggle">
         <button id="splitBtn" class="active" title="Split slider view">Split</button>
-        <button id="sideBtn" title="Side-by-side view">Side by Side</button>
-        <button id="combineBtn" title="Combine into one image">Combine</button>
+        <button id="joinedBtn" title="Joined view: A and B edge-to-edge">Joined</button>
         <button id="diffBtn" title="Pixel-difference view">Diff</button>
         <button id="soloBtn" title="Show one image; press and hold to reveal the other">Solo</button>
       </div>
@@ -294,6 +298,10 @@
         <button data-mode="diagonal-slash" title="Split diagonally /">/ Diagonal</button>
         <button data-mode="diagonal-backslash" title="Split diagonally \">\ Diagonal</button>
         <button data-mode="horizontal" title="Split top / bottom">— Horizontal</button>
+      </div>
+      <div class="seg" id="joinedLayoutGroup" style="display:none;">
+        <button data-layout="h" class="active" title="Joined side by side: A | B">A | B</button>
+        <button data-layout="v" title="Joined stacked: A over B">A over B</button>
       </div>
     </div>
     <div class="header-right">
@@ -311,12 +319,12 @@
         <label title="Sweep speed (seconds per pass)">Speed <input id="speedInput" type="range" min="0.5" max="8" step="0.5" value="2.5"><span id="speedValue">2.5s</span></label>
       </div>
       <button class="btn" id="fullscreenBtn" title="Toggle fullscreen">Full Screen</button>
-      <button class="btn" id="captureBtn" title="Save current view as PNG">Capture</button>
-      <label class="pill" id="dividerCapWrap" title="Burn the split divider line into captured PNGs" style="display:none;"><input type="checkbox" id="dividerCapture">Divider</label>
+      <button class="btn" id="captureBtn" title="Capture current view as PNG">Capture</button>
+      <label class="pill" id="dividerCapWrap" title="Burn the split divider line into captured PNGs" style="display:none;"><input type="checkbox" id="dividerCapture">Divider in capture</label>
       <button class="btn" id="soloBaseBtn" style="display:none;" title="Swap which image is shown at rest">Base: A</button>
-      <button class="btn" id="themeBtn" title="Switch to light theme" aria-label="Switch to light theme"><span id="themeIcon" aria-hidden="true">☀</span></button>
-      <button class="btn" id="resetBtn" title="Reset zoom, pan and slider">Reset</button>
-      <button class="btn close" id="backBtn" title="Back to upload">Close</button>
+      <button class="btn icon-btn" id="themeBtn" title="Switch to light theme" aria-label="Switch to light theme"><span id="themeIcon" aria-hidden="true">☀️</span></button>
+      <button class="btn icon-btn" id="resetBtn" title="Reset zoom, pan and slider" aria-label="Reset zoom, pan and slider">↺</button>
+      <button class="btn icon-btn close" id="backBtn" title="Back to upload" aria-label="Back to upload">✕</button>
     </div>
   </div>
 
@@ -338,24 +346,25 @@
       <div class="slider" id="slider"><div class="slider-handle" id="sliderHandle">&#8644;</div></div>
     </div>
 
-    <!-- Side by side -->
-    <div class="side-by-side pannable" id="sideBySide">
-      <div class="panel"><img id="imgA2" alt="Image A"></div>
-      <div class="divider"></div>
-      <div class="panel"><img id="imgB2" alt="Image B"></div>
+    <!-- Joined (A and B edge-to-edge, one locked unit) -->
+    <div class="joined pannable" id="joinedView">
+      <img id="imgJ1" alt="Image A">
+      <img id="imgJ2" alt="Image B">
+      <span class="joined-tag" id="tagA">Before</span>
+      <span class="joined-tag" id="tagB">After</span>
     </div>
 
-    <!-- Combine / Diff result -->
+    <!-- Diff result (Combine exports straight to file via Capture) -->
     <div class="result-panel pannable" id="resultPanel">
       <img id="resultImage" alt="Result">
-      <button class="btn primary" id="resultDownload">Download</button>
     </div>
   </div>
 
-  <!-- ===================== COMBINE / DIFF CONTROLS ===================== -->
-  <div class="combine-controls" id="combineControls">
-    <div class="ctl"><label>Gap</label><input type="range" min="0" max="50" value="0" id="gapControl" title="Gap between images"><span class="val" id="gapValue">0px</span></div>
+  <!-- ===================== JOINED / DIFF CONTROLS ===================== -->
+  <div class="joined-controls" id="joinedControls">
+    <div class="ctl"><label>Gap</label><input type="range" min="0" max="50" value="0" id="gapControl" title="Gap between images (0 = snug)"><span class="val" id="gapValue">0px</span></div>
     <div class="ctl"><label>Background</label><input type="color" value="#ffffff" id="bgColor" title="Background color"></div>
+    <div class="ctl"><label title="Keep the background transparent in PNG/WebP exports (JPEG has no alpha and flattens to white)">Transparent <input type="checkbox" id="transparentBg"></label></div>
     <div class="ctl"><label>Label Size</label><input type="range" min="6" max="64" value="20" id="fontSize" title="Label font size"><span class="val" id="fontValue">20px</span></div>
     <div class="ctl"><label>Label Color</label><input type="color" value="#000000" id="labelColor" title="Label color"></div>
     <div class="ctl"><label>Format</label>
@@ -2235,19 +2244,20 @@ const nameB = document.getElementById('nameB');
 const compareBtn = document.getElementById('compareBtn');
 const uploadResetBtn = document.getElementById('uploadResetBtn');
 const compareView = document.getElementById('compareView');
-const sideBySide = document.getElementById('sideBySide');
+const joinedView = document.getElementById('joinedView');
 const resultPanel = document.getElementById('resultPanel');
 const imgA = document.getElementById('imgA');
 const imgB = document.getElementById('imgB');
-const imgA2 = document.getElementById('imgA2');
-const imgB2 = document.getElementById('imgB2');
+const imgJ1 = document.getElementById('imgJ1');
+const imgJ2 = document.getElementById('imgJ2');
+const tagA = document.getElementById('tagA');
+const tagB = document.getElementById('tagB');
 const splitClip = document.getElementById('splitClip');
 const splitClipB = document.getElementById('splitClipB');
 const dividerLine = document.getElementById('dividerLine');
 const slider = document.getElementById('slider');
 const sliderHandle = document.getElementById('sliderHandle');
 const resultImage = document.getElementById('resultImage');
-const resultDownload = document.getElementById('resultDownload');
 const infoTagA = document.getElementById('infoTagA');
 const infoTagB = document.getElementById('infoTagB');
 
@@ -2265,11 +2275,11 @@ const themeIcon = document.getElementById('themeIcon');
 const resetBtn = document.getElementById('resetBtn');
 const backBtn = document.getElementById('backBtn');
 const splitBtn = document.getElementById('splitBtn');
-const sideBtn = document.getElementById('sideBtn');
-const combineBtn = document.getElementById('combineBtn');
+const joinedBtn = document.getElementById('joinedBtn');
 const diffBtn = document.getElementById('diffBtn');
 const soloBtn = document.getElementById('soloBtn');
 const soloBaseBtn = document.getElementById('soloBaseBtn');
+const joinedLayoutGroup = document.getElementById('joinedLayoutGroup');
 
 const zoomInput = document.getElementById('zoomInput');
 const zoomPresets = Array.from(document.querySelectorAll('.zoom-preset'));
@@ -2277,7 +2287,8 @@ const animateToggleBtn = document.getElementById('animateToggleBtn');
 const speedInput = document.getElementById('speedInput');
 const speedValue = document.getElementById('speedValue');
 
-const combineControls = document.getElementById('combineControls');
+const joinedControls = document.getElementById('joinedControls');
+const transparentBg = document.getElementById('transparentBg');
 const gapControl = document.getElementById('gapControl');
 const gapValue = document.getElementById('gapValue');
 const bgColor = document.getElementById('bgColor');
@@ -2333,7 +2344,8 @@ function probeImage(url) {
 }
 let sliderPos = 0.5, handleX = 0.5, handleY = 0.5; // slider position (0..1) + free 2D handle coords (0..1)
 let sliderMode = 'vertical';                   // 'vertical' | 'horizontal' | 'diagonal-slash' | 'diagonal-backslash'
-let mode = 'split';                            // 'split' | 'side' | 'combine' | 'diff' | 'solo'
+let mode = 'split';                            // 'split' | 'joined' | 'diff' | 'solo'
+let joinedLayout = 'h';                      // 'h' = A|B, 'v' = A over B
 let soloBase = 'A';                           // which image (A or B) is shown at rest in Solo mode
 let zoom = 1, panX = 0, panY = 0;           // current zoom factor and pan offset (in CSS px, pre-zoom)
 let isDragging = false, isPanning = false;   // gesture flags: slider handle drag vs. canvas pan
@@ -2385,7 +2397,7 @@ function showToast(message, type = 'success') {
 function updateThemeBtn() {
   const cur = document.documentElement.getAttribute('data-theme') || 'dark';
   const dark = cur !== 'light';
-  themeIcon.textContent = dark ? '☀' : '☾';
+  themeIcon.textContent = dark ? '☀️' : '🌙';
   const label = dark ? 'Switch to light theme' : 'Switch to dark theme';
   themeBtn.title = label;
   themeBtn.setAttribute('aria-label', label);
@@ -2612,7 +2624,7 @@ uploadResetBtn.addEventListener('click', () => {
 function loadWorkspaceImages(cb) {
   let loaded = 0;
   const onLoad = () => { if (++loaded >= 2) cb(); };
-  imgA2.src = fileAUrl; imgB2.src = fileBUrl;
+  imgJ1.src = fileAUrl; imgJ2.src = fileBUrl;
   for (const [im, url] of [[imgA, fileAUrl], [imgB, fileBUrl]]) {
     const done = () => { im.removeEventListener('load', done); im.removeEventListener('error', done); onLoad(); };
     im.addEventListener('load', done);
@@ -2634,7 +2646,7 @@ function startCompare() {
   infoBar.style.display = 'flex';
   zoom = 1; panX = 0; panY = 0; sliderPos = 0.5;
   setViewMode('split');
-  loadWorkspaceImages(() => { updateInfoTags(); setSplit(50); normalizeSplit(); normalizeSideBySide(); });
+  loadWorkspaceImages(() => { updateInfoTags(); setSplit(50); normalizeSplit(); });
 }
 /**
  * Swap in newly dropped images while already comparing: keep the view mode and
@@ -2648,8 +2660,7 @@ function reloadCompare() {
   loadWorkspaceImages(() => {
     updateInfoTags();
     if (mode === 'split') { normalizeSplit(); setSplit(sliderPos * 100); }
-    else if (mode === 'side') normalizeSideBySide();
-    else if (mode === 'combine') renderCombine();
+    else if (mode === 'joined') normalizeJoined();
     else if (mode === 'diff') renderDiff();
     else if (mode === 'solo') soloShowBase();
   });
@@ -2706,39 +2717,40 @@ function resetView() {
 
 /**
  * Switch to a view mode and (re)configure which UI regions are visible/active.
- * @param {'split'|'side'|'combine'|'diff'|'solo'} m - target mode
- * Side effects: toggles display of compareView / sideBySide / resultPanel,
- * the slider + mode-group (split only), play group, fullscreen/capture/solo
- * buttons, the combine/diff controls, and highlights the active toggle button.
- * Then renders the appropriate content (combine/diff canvas, side layout, or
- * split/solo setup) and stops any running animation.
+ * @param {'split'|'joined'|'diff'|'solo'} m - target mode
+ * Side effects: toggles display of compareView / joinedView / resultPanel,
+ * the slider + mode-group (split only), the joined-layout group (joined only),
+ * play group, fullscreen/capture/solo buttons, the joined/diff controls, and
+ * highlights the active toggle button. Then renders the appropriate content
+ * (joined layout, diff canvas, or split/solo setup) and stops any animation.
  * @credit view-mode switching pattern adapted from compare-image (tchung1970, MIT)
  */
 function setViewMode(m) {
   mode = m;
   resetView();
-  const isSplit = m === 'split', isSide = m === 'side', isSolo = m === 'solo';
-  const isCombo = m === 'combine' || m === 'diff';
+  const isSplit = m === 'split', isJoined = m === 'joined', isSolo = m === 'solo';
+  const isDiff = m === 'diff';
   compareView.style.display = (isSplit || isSolo) ? 'block' : 'none';
-  sideBySide.style.display = isSide ? 'flex' : 'none';
-  resultPanel.style.display = isCombo ? 'flex' : 'none';
+  joinedView.style.display = isJoined ? 'block' : 'none';
+  resultPanel.style.display = isDiff ? 'flex' : 'none';
   slider.style.display = isSplit ? 'flex' : 'none';
   sliderModeGroup.style.display = isSplit ? 'flex' : 'none';
+  joinedLayoutGroup.style.display = isJoined ? 'flex' : 'none';
   zoomGroup.style.display = 'flex';
   playGroup.style.display = isSplit ? 'flex' : 'none';
   fullscreenBtn.style.display = (isSplit || isSolo) ? 'inline-flex' : 'none';
-  captureBtn.style.display = (isSplit || isSide) ? 'inline-flex' : 'none';
+  captureBtn.style.display = 'inline-flex';
   dividerCapWrap.style.display = isSplit ? 'inline-flex' : 'none';
   soloBaseBtn.style.display = isSolo ? 'inline-flex' : 'none';
-  combineControls.style.display = isCombo ? 'flex' : 'none';
+  joinedControls.style.display = (isJoined || isDiff) ? 'flex' : 'none';
 
   // Highlight the active mode toggle button.
-  [splitBtn, sideBtn, combineBtn, diffBtn, soloBtn].forEach(b => b.classList.remove('active'));
-  (isSplit ? splitBtn : isSide ? sideBtn : isSolo ? soloBtn : m === 'combine' ? combineBtn : diffBtn).classList.add('active');
+  [splitBtn, joinedBtn, diffBtn, soloBtn].forEach(b => b.classList.remove('active'));
+  (isSplit ? splitBtn : isJoined ? joinedBtn : isSolo ? soloBtn : diffBtn).classList.add('active');
 
   stopAnimation();
-  if (isCombo) { m === 'combine' ? renderCombine() : renderDiff(); }
-  if (isSide) requestAnimationFrame(normalizeSideBySide);
+  if (isDiff) renderDiff();
+  if (isJoined) normalizeJoined();
   if (isSplit) requestAnimationFrame(() => { normalizeSplit(); setSplit(sliderPos * 100); });
   if (isSolo) soloShowBase();
 }
@@ -2750,12 +2762,12 @@ function setViewMode(m) {
  */
 function hideAllViews() {
   compareView.style.display = 'none';
-  sideBySide.style.display = 'none';
+  joinedView.style.display = 'none';
   resultPanel.style.display = 'none';
   slider.style.display = 'none';
   dividerLine.style.display = 'none';
   compareView.classList.remove('active-drag');
-  sideBySide.classList.remove('active-drag');
+  joinedView.classList.remove('active-drag');
   resultPanel.classList.remove('active-drag');
 }
 /** Show the base image fully (Solo mode at rest: A => clip at 100%, B => 0%). */
@@ -2763,8 +2775,7 @@ function soloShowBase() { setSplit(soloBase === 'A' ? 100 : 0); }
 /** Show the *other* image fully (Solo mode while pressed: A => 0%, B => 100%). */
 function soloShowOther() { setSplit(soloBase === 'A' ? 0 : 100); }
 splitBtn.addEventListener('click', () => setViewMode('split'));
-sideBtn.addEventListener('click', () => setViewMode('side'));
-combineBtn.addEventListener('click', () => setViewMode('combine'));
+joinedBtn.addEventListener('click', () => setViewMode('joined'));
 diffBtn.addEventListener('click', () => setViewMode('diff'));
 soloBtn.addEventListener('click', () => setViewMode('solo'));
 /** Swap which image Solo mode shows at rest, and re-render the base view. */
@@ -2778,13 +2789,13 @@ soloBaseBtn.addEventListener('click', () => {
 /**
  * Return the DOM container that currently owns panning / zoom / pointer
  * capture for the active mode. Centralizing this keeps the pan and wheel
- * handlers consistent across all five modes (split+solo use compareView,
- * side uses sideBySide, combine/diff use resultPanel).
+ * handlers consistent across all four modes (split+solo use compareView,
+ * joined uses joinedView, diff uses resultPanel).
  * @returns {HTMLElement}
  */
 function getActiveContainer() {
-  if (mode === 'side') return sideBySide;
-  if (mode === 'combine' || mode === 'diff') return resultPanel;
+  if (mode === 'joined') return joinedView;
+  if (mode === 'diff') return resultPanel;
   return compareView; // split + solo
 }
 
@@ -2801,6 +2812,18 @@ document.querySelectorAll('#sliderModeGroup button').forEach(btn => {
     btn.classList.add('active');
     sliderMode = btn.dataset.mode;
     setSplit(sliderPos * 100);
+  });
+});
+/**
+ * Wire the joined-layout toggle (A|B vs A over B). Switching layout keeps the
+ * images and re-runs the joined fit so the pair stays snug and centered.
+ */
+document.querySelectorAll('#joinedLayoutGroup button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#joinedLayoutGroup button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    joinedLayout = btn.dataset.layout;
+    normalizeJoined();
   });
 });
 
@@ -3024,7 +3047,6 @@ function startSoloReveal(e) {
  */
 stage.addEventListener('pointerdown', e => {
   if (uploadScreen.style.display !== 'none') return;
-  if (e.target === resultDownload) return;
   if (e.target.closest && e.target.closest('button')) return;
   if (slider.contains(e.target)) return;
   if (mode === 'solo') { startSoloReveal(e); return; }
@@ -3083,16 +3105,7 @@ function onWheel(e) {
   const container = getActiveContainer();
   if (!container) return;
   e.preventDefault();
-  let rect;
-  if (mode === 'side') {
-    // anchor to the panel currently under the cursor so each image zooms toward its own center
-    const panels = sideBySide.querySelectorAll('.panel');
-    const r = sideBySide.getBoundingClientRect();
-    const p = (e.clientX < r.left + panels[0].clientWidth) ? panels[0] : panels[1];
-    rect = p.getBoundingClientRect();
-  } else {
-    rect = container.getBoundingClientRect();
-  }
+  const rect = container.getBoundingClientRect();
   const cx = e.clientX - rect.left - rect.width / 2;
   const cy = e.clientY - rect.top - rect.height / 2;
   const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
@@ -3142,9 +3155,10 @@ slider.addEventListener('keydown', e => {
  * @credit transform approach from compare-image (tchung1970, MIT)
  */
 function updateTransform() {
-  [imgA, imgB, imgA2, imgB2, resultImage].forEach(img => {
+  [imgA, imgB, imgJ1, imgJ2, resultImage].forEach(img => {
     img.style.transform = `translate(-50%, -50%) scale(${zoom}) translate(${panX}px, ${panY}px)`;
   });
+  if (mode === 'joined') positionJoinedTags();
   updateZoomUI();
 }
 /** Reflect zoom state in the UI: highlight the active preset and, unless the
@@ -3171,30 +3185,78 @@ zoomInput.addEventListener('keydown', e => {
   else if (e.key === 'Escape') { e.preventDefault(); updateZoomUI(); zoomInput.blur(); }
 });
 zoomInput.addEventListener('blur', applyZoomInput);
-/** Reset button: clear zoom/pan and recenter the slider to 50%. */
-resetBtn.addEventListener('click', () => { zoom = 1; panX = 0; panY = 0; sliderPos = 0.5; updateTransform(); setSplit(50); });
+/** Reset button: clear zoom/pan and recenter the slider — or, in Solo mode,
+ *  restore the base image full-frame instead of a half wipe. */
+resetBtn.addEventListener('click', () => { zoom = 1; panX = 0; panY = 0; sliderPos = 0.5; updateTransform(); if (mode === 'solo') soloShowBase(); else setSplit(50); });
 
-/* ============ Side by side ============ */
 /**
- * Size the two side-by-side images to the same display height (so they align
- * visually) while each preserving its own aspect ratio and fitting within its
- * panel. Uses the smaller of the two natural fit-heights as the shared target.
- * @credit side-by-side layout from compare-image (tchung1970, MIT)
+ * Background for the joined pair: transparent when requested and the export
+ * format keeps alpha; JPEG has no alpha channel so it flattens onto white
+ * (canvas JPEG output would otherwise go black). Returns null = transparent.
  */
-function normalizeSideBySide() {
-  if (!imgA2.naturalWidth || !imgB2.naturalWidth) return;
-  const panel = sideBySide.querySelector('.panel');
-  const pw = panel.clientWidth, ph = panel.clientHeight;
-  const rA = imgA2.naturalWidth / imgA2.naturalHeight;
-  const rB = imgB2.naturalWidth / imgB2.naturalHeight;
-  const hA = Math.min(ph, pw / rA), hB = Math.min(ph, pw / rB);
-  const targetH = Math.min(hA, hB);
-  [imgA2, imgB2].forEach(img => {
-    const r = img.naturalWidth / img.naturalHeight;
-    img.style.width = (targetH * r) + 'px';
-    img.style.height = targetH + 'px';
-  });
+function joinedBackground() {
+  if (!transparentBg.checked) return bgColor.value;
+  return formatSelect.value === 'jpeg' ? '#ffffff' : null;
+}
+/* ============ Joined layout ============ */
+/**
+ * Lay out A and B as one locked strip, centered in the view. Horizontal shares
+ * one display height, vertical shares one display width, so different dimensions
+ * always align with no bias; gap 0 keeps them snug edge-to-edge. Both images
+ * share the single global pan/zoom transform, so panning moves the pair rigidly
+ * and can never separate them. Background + tags mirror the export controls.
+ */
+function normalizeJoined() {
+  if (!imgJ1.naturalWidth || !imgJ2.naturalWidth) return;
+  const horizontal = joinedLayout !== 'v';
+  const gap = Math.max(0, parseInt(gapControl.value) || 0);
+  const r = joinedView.getBoundingClientRect();
+  const rA = imgJ1.naturalWidth / imgJ1.naturalHeight;
+  const rB = imgJ2.naturalWidth / imgJ2.naturalHeight;
+  // Background matches the export (transparent only when the format keeps alpha).
+  joinedView.style.background = joinedBackground() || 'transparent';
+  let xA, yA, wA, hA, xB, yB, wB, hB;
+  if (horizontal) {
+    const availH = r.height, availW = Math.max(0, (r.width - gap) / 2);
+    const targetH = Math.min(availH, availW / rA, availW / rB);
+    if (!(targetH > 0)) return;
+    wA = targetH * rA; hA = targetH; wB = targetH * rB; hB = targetH;
+    const y = (r.height - targetH) / 2, x = (r.width - wA - gap - wB) / 2;
+    xA = x; yA = y; xB = x + wA + gap; yB = y;
+  } else {
+    const availW = r.width, availH = Math.max(0, (r.height - gap) / 2);
+    const targetW = Math.min(availW, availH * rA, availH * rB);
+    if (!(targetW > 0)) return;
+    wA = targetW; hA = targetW / rA; wB = targetW; hB = targetW / rB;
+    const x = (r.width - targetW) / 2, y = (r.height - hA - gap - hB) / 2;
+    xA = x; yA = y; xB = x; yB = y + hA + gap;
+  }
+  // left/top are the box CENTERS: updateTransform() centers each image on them.
+  imgJ1.style.left = (xA + wA / 2) + 'px'; imgJ1.style.top = (yA + hA / 2) + 'px';
+  imgJ1.style.width = wA + 'px'; imgJ1.style.height = hA + 'px';
+  imgJ2.style.left = (xB + wB / 2) + 'px'; imgJ2.style.top = (yB + hB / 2) + 'px';
+  imgJ2.style.width = wB + 'px'; imgJ2.style.height = hB + 'px';
+  const fs = parseInt(fontSize.value), lp = Math.max(fs * 1.2, 30);
+  tagA.style.fontSize = fs + 'px'; tagA.style.color = labelColor.value;
+  tagB.style.fontSize = fs + 'px'; tagB.style.color = labelColor.value;
+  tagA.dataset.lp = lp; tagB.dataset.lp = lp;
   updateTransform();
+}
+/**
+ * Pin the Joined Before/After tags to the transformed image boxes. updateTransform()
+ * centers each image on its (left,top) and then scales + pans it, so the tag
+ * (untransformed, CSS-centered on its own left) goes at the transformed center-x
+ * and the transformed top edge plus a small label offset.
+ */
+function positionJoinedTags() {
+  const place = (tag, im) => {
+    const L = parseFloat(im.style.left), T = parseFloat(im.style.top);
+    const W = parseFloat(im.style.width), H = parseFloat(im.style.height);
+    if (![L, T, W, H].every(isFinite)) return;
+    tag.style.left = (L + zoom * panX) + 'px';
+    tag.style.top = (T + zoom * panY - (zoom * H) / 2 + Math.max(4, (parseFloat(tag.dataset.lp) || 30) * 0.35)) + 'px';
+  };
+  place(tagA, imgJ1); place(tagB, imgJ2);
 }
 
 /**
@@ -3304,23 +3366,20 @@ function drawContain(ctx, img, x, y, w, h) {
   ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
 }
 /**
- * Render the current split or side-by-side view to an offscreen canvas and
- * download it as PNG — exactly what is on screen, including the current zoom
- * and pan. Boxes come from the live layout (getBoundingClientRect, which
- * already includes zoom/pan) instead of recomputed fit math, so the capture
- * cannot drift from the viewport. The canvas is cropped to the visible part:
- * the union of the rendered image boxes intersected with the container.
- * Split mode draws image B (base) then clips image A to the active slider
- * polygon (container space); side-by-side draws both at their live positions.
- * Letterbox / gap zones are filled with the viewport background so the PNG
- * matches the screen, never transparent wedges. In split mode the on-screen
+ * Capture the current view. Split/Solo: WYSIWYG PNG from the live layout
+ * (zoom/pan included) — boxes come from getBoundingClientRect so the capture
+ * cannot drift from the viewport; cropped to the visible union. The split
  * divider line is burned in only when the Divider checkbox is on (off by
- * default, keeping pixel-exact exports).
+ * default, keeping pixel-exact exports). Joined: exports the joined strip at
+ * natural scale (same layout as the preview). Diff: downloads the current
+ * diff result.
  * @credit capture approach from compare-image (tchung1970, MIT)
  */
 function captureComparison() {
-  if (mode !== 'split' && mode !== 'side') return;
-  const area = mode === 'split' ? compareView : sideBySide;
+  if (mode === 'joined') { renderJoined(); return; }
+  if (mode === 'diff') { downloadResultImage(); return; }
+  if (mode !== 'split' && mode !== 'solo') return;
+  const area = compareView;
   const arect = area.getBoundingClientRect();
   if (!arect.width || !arect.height) return;
 
@@ -3329,7 +3388,7 @@ function captureComparison() {
     const r = im.getBoundingClientRect();
     return { im, x: r.left - arect.left, y: r.top - arect.top, w: r.width, h: r.height };
   };
-  const boxes = (mode === 'split' ? [imgB, imgA] : [imgA2, imgB2])
+  const boxes = [imgB, imgA]
     .map(liveBox).filter(b => b.im.naturalWidth && b.w > 0 && b.h > 0);
   if (!boxes.length) return;
   let ux = Infinity, uy = Infinity, umx = -Infinity, umy = -Infinity;
@@ -3354,7 +3413,7 @@ function captureComparison() {
   ctx.fillStyle = getComputedStyle(stage).backgroundColor;
   ctx.fillRect(cx0, cy0, cw, ch);
 
-  if (mode === 'split') {
+  if (mode === 'split' || mode === 'solo') {
     // Clip polygons live in container-normalized space — trace them unmapped.
     const traceClip = pts => {
       ctx.beginPath();
@@ -3393,8 +3452,6 @@ function captureComparison() {
       }
       ctx.restore();
     }
-  } else {
-    for (const b of boxes) drawContain(ctx, b.im, b.x, b.y, b.w, b.h);
   }
 
   canvas.toBlob(blob => { if (blob) downloadBlob(blob, `compare-${mode}.png`); }, 'image/png');
@@ -3420,8 +3477,8 @@ function ensureLoaded(img) {
   return new Promise(res => { if (img.complete && img.naturalWidth) res(); else img.onload = res; });
 }
 /**
- * Push a rendered canvas into the result <img> and (re)bind the Download button
- * to save it in the chosen format/quality.
+ * Push a rendered canvas into the result <img> for on-screen preview.
+ * (Export uses Capture, which downloads directly.)
  * @param {HTMLCanvasElement} canvas
  * @param {string} format - 'png' | 'jpeg' | 'webp'
  * @param {number} quality - 0..100 (used for jpeg/webp)
@@ -3429,43 +3486,56 @@ function ensureLoaded(img) {
 function showResult(canvas, format, quality) {
   const q = format === 'jpeg' ? quality / 100 : undefined;
   resultImage.src = canvas.toDataURL(`image/${format}`, q);
-  resultDownload.onclick = () => {
-    const link = document.createElement('a');
-    link.download = `${mode === 'diff' ? 'image-diff' : 'combined-image'}.${format}`;
-    link.href = resultImage.src; link.click();
-  };
+}
+/** Download the on-screen diff result in the chosen format. */
+/** Download the on-screen diff result in the chosen format, routed through the
+ *  shared downloadBlob funnel (same path as every capture, so tests and
+ *  future hooks see one consistent download pipeline). */
+function downloadResultImage() {
+  if (!resultImage.getAttribute('src')) return;
+  fetch(resultImage.src).then(r => r.blob()).then(blob => {
+    if (blob) downloadBlob(blob, `image-diff.${formatSelect.value}`);
+  });
 }
 /**
- * Render image A and B into a single combined canvas placed side-by-side
- * (horizontal layout when BOTH are portrait) or stacked (otherwise), with an
- * optional gap, background color, and "Before"/"After" labels. Result is shown
- * via showResult().
+ * Render image A and B into a single joined canvas — one locked strip, same
+ * layout as the interactive Joined view — and download it straight away.
+ * Horizontal shares one height, vertical shares one width (both centered, so
+ * different dimensions align with no bias). Transparent background is kept
+ * when requested and the format supports alpha; JPEG flattens onto white.
  */
-function renderCombine() {
+function renderJoined() {
   Promise.all([ensureLoaded(imgA), ensureLoaded(imgB)]).then(() => {
-    const aA = imgA.naturalWidth / imgA.naturalHeight, aB = imgB.naturalWidth / imgB.naturalHeight;
-    const horizontal = aA < 1 && aB < 1;
-    const gap = parseInt(gapControl.value);
+    const rA = imgA.naturalWidth / imgA.naturalHeight, rB = imgB.naturalWidth / imgB.naturalHeight;
+    const horizontal = joinedLayout !== 'v';
+    const gap = Math.max(0, parseInt(gapControl.value) || 0);
+    const format = formatSelect.value, quality = parseInt(qualityControl.value);
+    const bg = joinedBackground();
+    let cW, cH, cells;
+    if (horizontal) {
+      const H = Math.max(imgA.naturalHeight, imgB.naturalHeight);
+      const A = { w: Math.round(H * rA), h: H }, B = { w: Math.round(H * rB), h: H };
+      cW = A.w + gap + B.w; cH = H;
+      cells = [{ im: imgA, x: 0, y: 0, ...A }, { im: imgB, x: A.w + gap, y: 0, ...B }];
+    } else {
+      const W = Math.max(imgA.naturalWidth, imgB.naturalWidth);
+      const A = { w: W, h: Math.round(W / rA) }, B = { w: W, h: Math.round(W / rB) };
+      cW = W; cH = A.h + gap + B.h;
+      cells = [{ im: imgA, x: 0, y: 0, ...A }, { im: imgB, x: 0, y: A.h + gap, ...B }];
+    }
     const c = document.createElement('canvas');
-    if (horizontal) { c.width = imgA.naturalWidth + imgB.naturalWidth + gap; c.height = Math.max(imgA.naturalHeight, imgB.naturalHeight); }
-    else { c.width = Math.max(imgA.naturalWidth, imgB.naturalWidth); c.height = imgA.naturalHeight + imgB.naturalHeight + gap; }
+    c.width = Math.max(1, cW); c.height = Math.max(1, cH);
     const ctx = c.getContext('2d');
     ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = bgColor.value; ctx.fillRect(0, 0, c.width, c.height);
+    if (bg) { ctx.fillStyle = bg; ctx.fillRect(0, 0, c.width, c.height); }
     const fs = parseInt(fontSize.value), lp = Math.max(fs * 1.2, 30);
     ctx.fillStyle = labelColor.value; ctx.font = `${fs}px Arial`; ctx.textAlign = 'center';
-    if (horizontal) {
-      ctx.drawImage(imgA, 0, 0, imgA.naturalWidth, imgA.naturalHeight);
-      ctx.drawImage(imgB, imgA.naturalWidth + gap, 0, imgB.naturalWidth, imgB.naturalHeight);
-      ctx.fillText('Before', imgA.naturalWidth / 2, lp);
-      ctx.fillText('After', imgA.naturalWidth + gap + imgB.naturalWidth / 2, lp);
-    } else {
-      ctx.drawImage(imgA, 0, 0, imgA.naturalWidth, imgA.naturalHeight);
-      ctx.drawImage(imgB, 0, imgA.naturalHeight + gap, imgB.naturalWidth, imgB.naturalHeight);
-      ctx.fillText('Before', c.width / 2, lp);
-      ctx.fillText('After', c.width / 2, imgA.naturalHeight + gap + lp);
+    for (const cell of cells) {
+      ctx.drawImage(cell.im, cell.x, cell.y, cell.w, cell.h);
+      ctx.fillText(cell.im === imgA ? 'Before' : 'After', cell.x + cell.w / 2, cell.y + lp);
     }
-    showResult(c, formatSelect.value, parseInt(qualityControl.value));
+    const q = format === 'jpeg' ? quality / 100 : undefined;
+    c.toBlob(blob => { if (blob) downloadBlob(blob, `joined-image.${format}`); }, `image/${format}`, q);
   });
 }
 /**
@@ -3481,7 +3551,11 @@ function renderDiff() {
     const bc = document.createElement('canvas'), ac = document.createElement('canvas'), dc = document.createElement('canvas');
     [bc, ac, dc].forEach(cv => { cv.width = w; cv.height = h; });
     const bctx = bc.getContext('2d'), actx = ac.getContext('2d'), dctx = dc.getContext('2d');
-    [bctx, actx, dctx].forEach(c => { c.imageSmoothingEnabled = false; c.fillStyle = bgColor.value; c.fillRect(0, 0, w, h); });
+    const bg = joinedBackground();
+    [bctx, actx, dctx].forEach(c => {
+      c.imageSmoothingEnabled = false;
+      if (bg) { c.fillStyle = bg; c.fillRect(0, 0, w, h); }
+    });
     bctx.drawImage(imgA, (w - imgA.naturalWidth) / 2, (h - imgA.naturalHeight) / 2);
     actx.drawImage(imgB, (w - imgB.naturalWidth) / 2, (h - imgB.naturalHeight) / 2);
     const bd = bctx.getImageData(0, 0, w, h).data, ad = actx.getImageData(0, 0, w, h).data;
@@ -3499,17 +3573,18 @@ function renderDiff() {
     showResult(dc, formatSelect.value, parseInt(qualityControl.value));
   });
 }
-/** Re-render the combine/diff result for the active combo mode (called on any
- *  control change: gap, font, quality, colors, format). */
-function reRenderCombo() { if (mode === 'combine') renderCombine(); else if (mode === 'diff') renderDiff(); }
-// Live re-render of combine/diff whenever any control changes. Each listener
-// also updates its little value readout (e.g. "12px", "92%") in the UI.
-gapControl.addEventListener('input', () => { gapValue.textContent = gapControl.value + 'px'; reRenderCombo(); });
-fontSize.addEventListener('input', () => { fontValue.textContent = fontSize.value + 'px'; reRenderCombo(); });
-qualityControl.addEventListener('input', () => { qualityValue.textContent = qualityControl.value + '%'; reRenderCombo(); });
-bgColor.addEventListener('input', reRenderCombo);
-labelColor.addEventListener('input', reRenderCombo);
-formatSelect.addEventListener('change', reRenderCombo);
+/** Refresh the joined/diff view when any joined control changes
+ *  (gap, font, quality, colors, format, layout, transparency). */
+function refreshJoined() { if (mode === 'diff') renderDiff(); else if (mode === 'joined') normalizeJoined(); }
+// Live refresh whenever any joined control changes. Each listener also updates
+// its little value readout (e.g. "12px", "92%") in the UI.
+gapControl.addEventListener('input', () => { gapValue.textContent = gapControl.value + 'px'; refreshJoined(); });
+fontSize.addEventListener('input', () => { fontValue.textContent = fontSize.value + 'px'; refreshJoined(); });
+qualityControl.addEventListener('input', () => { qualityValue.textContent = qualityControl.value + '%'; refreshJoined(); });
+bgColor.addEventListener('input', refreshJoined);
+labelColor.addEventListener('input', refreshJoined);
+formatSelect.addEventListener('change', refreshJoined);
+transparentBg.addEventListener('change', refreshJoined);
 
 /* ============ Back to upload ============ */
 /**
@@ -3520,9 +3595,10 @@ formatSelect.addEventListener('change', reRenderCombo);
  */
 backBtn.addEventListener('click', () => {
   stopAnimation();
-  imgA.src = ''; imgB.src = ''; imgA2.src = ''; imgB2.src = '';
+  imgA.src = ''; imgB.src = ''; imgJ1.src = ''; imgJ2.src = '';
   hideAllViews();
-  combineControls.style.display = 'none';
+  joinedControls.style.display = 'none';
+  joinedLayoutGroup.style.display = 'none';
   uploadScreen.style.display = 'flex';
   header.style.display = 'none'; infoBar.style.display = 'none';
   zoom = 1; panX = 0; panY = 0; sliderPos = 0.5;
@@ -3532,9 +3608,9 @@ backBtn.addEventListener('click', () => {
 /* ============ Resize ============ */
 /**
  * On viewport resize, recompute the split clip (so the divider stays aligned to
- * the new aspect ratio) or re-fit the side-by-side images to their panels.
+ * the new aspect ratio) or re-fit the joined strip to the view.
  */
-window.addEventListener('resize', () => { if (mode === 'split') { normalizeSplit(); setSplit(sliderPos * 100); } else if (mode === 'side') normalizeSideBySide(); });
+window.addEventListener('resize', () => { if (mode === 'split') { normalizeSplit(); setSplit(sliderPos * 100); } else if (mode === 'joined') normalizeJoined(); });
 
 /* ============ Init labels ============ */
 /**

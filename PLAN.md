@@ -156,6 +156,74 @@ Code-level plan (all in `ImageCompare-Ultimate.html` unless noted):
 Verification: `node --check` on extracted scripts (as before) + full
 `tests/e2e.cjs` run, must be ALL PASS.
 
+### 2.8 Joined view (merge Combine + Side by Side) + follow-ups
+
+Goal (user intent): one **Joined** mode replacing Combine and Side by Side, with
+options (orientation H/V, gap default 0, background incl. transparent, labels,
+export format/quality); A/B edge-to-edge as one locked pan/zoom unit, no
+separation by panning; different sizes share height (H) or width (V),
+center-aligned; export matches preview. Plus: transparent-background combine
+export (PNG/WebP alpha; JPEG flattens to white); divider checkbox renamed to
+"Divider in capture"; Reset in Solo restores the base view; Capture available in
+all modes and the separate Download button goes away; real-color moon/sun on a
+square theme button; square icon Reset/Close buttons.
+
+Code-level plan (all in `ImageCompare-Ultimate.html` unless noted):
+
+1. **Header**: viewToggle `Split | Joined | Diff | Solo` (`#joinedBtn` replaces
+   `#sideBtn`+`#combineBtn`); new `#joinedLayoutGroup` seg (`A | B` / `A over B`,
+   joined-only, same show/hide pattern as `sliderModeGroup`); `Divider in
+   capture` label text (was `Divider`); `#themeBtn` gets `icon-btn` + `🌙/☀️`;
+   `#resetBtn` → `↺`, `#backBtn` → `✕`, all three `icon-btn` square
+   (34×34, centered) with titles/aria-labels kept.
+2. **CSS**: `.btn.icon-btn` square rule; `.side-by-side` block → `.joined`
+   strip styles (absolute inset-0 flex-centered container, `.joined-cell`
+   relative, `.joined-tag` absolute top-center overlay); `.combine-controls`
+   → `.joined-controls` (same rules); `#resultDownload` rule deleted;
+   result panel keeps preview for Diff only.
+3. **DOM**: `#sideBySide`+panels → `#joinedView` with `#imgJ1/#imgJ2` +
+   `#tagA/#tagB`; `#joinedControls` (was combineControls) + Transparent
+   checkbox; `#joinedLayout` state var default `'h'`.
+4. **Modes**: internal `'combine'` → `'joined'` everywhere (`setViewMode`,
+   `getActiveContainer`, capture, reload, resize, tests). `side` mode deleted:
+   `normalizeSideBySide`, `imgA2/imgB2`, side `onWheel` branch, side capture
+   branch all go. `captureBtn` always visible. `setViewMode`: joined shows
+   joinedView + joinedLayoutGroup + joinedControls; diff shows resultPanel +
+   joinedControls; capture always on; `resetView` unchanged.
+5. **Locked unit**: `updateTransform` applies the identical shared transform to
+   `imgJ1/imgJ2` (replacing imgA2/imgB2 in the list); `normalizeJoined` positions
+   both boxes absolutely (centers, like split) so pan/zoom math, wheel anchoring
+   and capture all reuse the existing machinery — rigid by construction.
+6. **`normalizeJoined`**: shared fit size (H: `min` fit-heights like old side
+   code; V: mirrored with widths), group centered, `strip gap` from
+   `gapControl`, view bg from bgColor (or transparent / white-flatten rule to
+   match export), tags honor font size/color. Called on mode-enter, resize,
+   and every joined/diff control input.
+7. **Export**: `renderCombine` → `renderJoined()` (always downloads):
+   natural-scale cells at shared height (H) or width (V), `gap`, bg fill skipped
+   when transparent+P export format is PNG/WebP (JPEG flattens onto white,
+   commented), centered Before/After labels, `toBlob(format, quality)`.
+   Diff keeps preview; Capture in diff downloads current `resultImage.src`.
+   `#resultDownload` element + const + stage-guard ref + `onclick` removed;
+   new `downloadResultImage()` used by the Capture path.
+8. **Capture routing**: split/solo → existing live-viewport path (solo works
+   through the same split math at clip 0/100); joined → `renderJoined()`;
+   diff → `downloadResultImage()`. Docstring updated.
+9. **Solo reset**: Reset button is mode-aware — in Solo it calls `soloShowBase()`
+   (base image full-frame) instead of `setSplit(50)`.
+10. **Tests** (`tests/e2e.cjs`): drop side branches/refs; joined H export dims +
+    region colors + gap column + transparent alpha; V dims + stacked regions;
+    interactive adjacency + centering via DOM rects; orientation toggle;
+    solo-reset restores full base clip; solo + diff Capture smoke (bytes +
+    dimMatch); divider label contains "capture"; icon buttons square with
+    aria-labels; theme glyphs `☀️`/`🌙`.
+11. **Docs**: README view toggles + Combine/Side bullets → Joined (H/V,
+    locked, gap 0 default, transparent bg, labels, export); capture bullet =
+    all modes incl. joined/diff/solo; header FEATURE MAP comment updated.
+
+Verification: `node --check` on extracted scripts + full `tests/e2e.cjs`,
+must be ALL PASS.
+
 ## 3. Risks / open points (decided, not asked)
 
 - Auto-start fires also when the second image arrives long after the first — intended.
